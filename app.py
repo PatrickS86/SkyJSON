@@ -19,7 +19,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / 'config.db'
 DEFAULT_SECRET = 'change-me-skyjson-secret'
-APP_VERSION = '1.8.0'
+APP_VERSION = '1.8.1'
 REQUEST_TIMEOUT = 10
 GITHUB_SPONSOR_URL = 'https://github.com/sponsors/PatrickS86'
 
@@ -79,6 +79,19 @@ def get_local_file_version() -> str:
     return read_version_from_path(BASE_DIR / 'app.py') or APP_VERSION
 
 
+def get_head_file_version() -> str:
+    show = run_cmd(['git', 'show', 'HEAD:app.py']) if (BASE_DIR / '.git').exists() else {'ok': False, 'stdout': ''}
+    if show.get('ok') and show.get('stdout'):
+        match = re.search(r"APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]", show['stdout'])
+        if match:
+            return match.group(1)
+    return get_local_file_version()
+
+
+def get_running_version() -> str:
+    return APP_VERSION
+
+
 def is_installed() -> bool:
     return get_setting('installed', '0') == '1'
 
@@ -120,6 +133,7 @@ def inject_globals():
     return {
         'app_title': 'SkyJSON',
         'app_version': get_local_file_version(),
+        'running_version': get_running_version(),
         'config_auth_enabled': config_auth_enabled(),
         'is_logged_in': is_logged_in(),
         'github_donation_url': get_github_donation_url(),
@@ -326,12 +340,16 @@ def read_remote_app_version(remote_ref: str) -> Optional[str]:
 
 def get_update_status() -> Dict[str, Any]:
     current_version = get_local_file_version()
+    running_version = get_running_version()
+    head_version = get_head_file_version()
 
     if not (BASE_DIR / '.git').exists():
         return {
             'supported': False,
             'message': 'Updates require SkyJSON to be installed from a Git repository.',
             'current_version': current_version,
+            'running_version': running_version,
+            'head_version': head_version,
             'remote_version': None,
             'update_kind': None,
         }
@@ -343,6 +361,8 @@ def get_update_status() -> Dict[str, Any]:
             'update_available': None,
             'message': f"Git fetch failed: {fetch['stderr'] or fetch['stdout']}",
             'current_version': current_version,
+            'running_version': running_version,
+            'head_version': head_version,
             'remote_version': None,
             'update_kind': None,
         }
@@ -357,6 +377,8 @@ def get_update_status() -> Dict[str, Any]:
             'update_available': None,
             'message': 'Unable to determine Git update status for this installation.',
             'current_version': current_version,
+            'running_version': running_version,
+            'head_version': head_version,
             'remote_version': None,
             'update_kind': None,
         }
@@ -369,6 +391,8 @@ def get_update_status() -> Dict[str, Any]:
             'update_available': None,
             'message': 'Unable to determine remote commit for the tracked branch.',
             'current_version': current_version,
+            'running_version': running_version,
+            'head_version': head_version,
             'remote_version': None,
             'update_kind': None,
         }
@@ -376,6 +400,11 @@ def get_update_status() -> Dict[str, Any]:
     remote_version = read_remote_app_version(remote_ref) or current_version
     update_available = current_commit['stdout'] != remote_commit['stdout']
     update_kind = compare_versions(current_version, remote_version)
+
+    ahead_count = run_cmd(['git', 'rev-list', '--count', f'{remote_ref}..HEAD'])
+    behind_count = run_cmd(['git', 'rev-list', '--count', f'HEAD..{remote_ref}'])
+    ahead = ahead_count['stdout'] if ahead_count.get('ok') else '0'
+    behind = behind_count['stdout'] if behind_count.get('ok') else '0'
 
     if update_available and update_kind:
         message = f'A {update_kind} update is available on GitHub.'
@@ -391,8 +420,12 @@ def get_update_status() -> Dict[str, Any]:
         'current_commit': current_commit['stdout'][:7],
         'remote_commit': remote_commit['stdout'][:7],
         'current_version': current_version,
+        'running_version': running_version,
+        'head_version': head_version,
         'remote_version': remote_version,
         'update_kind': update_kind,
+        'ahead_count': ahead,
+        'behind_count': behind,
         'message': message,
     }
 
@@ -639,7 +672,13 @@ def restart_app():
 
 @app.route('/health')
 def health():
-    return {'status': 'ok', 'app': 'SkyJSON', 'version': get_local_file_version()}
+    return {
+        'status': 'ok',
+        'app': 'SkyJSON',
+        'running_version': get_running_version(),
+        'file_version': get_local_file_version(),
+        'head_version': get_head_file_version(),
+    }
 
 
 if __name__ == '__main__':
