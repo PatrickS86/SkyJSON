@@ -19,7 +19,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / 'config.db'
 DEFAULT_SECRET = 'change-me-skyjson-secret'
-APP_VERSION = '1.8.3'
+APP_VERSION = '1.8.4'
 REQUEST_TIMEOUT = 10
 GITHUB_SPONSOR_URL = 'https://github.com/sponsors/PatrickS86'
 VERSION_FILE = BASE_DIR / 'VERSION'
@@ -121,10 +121,29 @@ def get_remote_version() -> Optional[str]:
     return None
 
 
-def get_versions_simple() -> Dict[str, str]:
+def get_versions_simple() -> Dict[str, Any]:
+    local_version = get_local_file_version()
+
+    fetch_ok = False
+    fetch_error = ''
+    if (BASE_DIR / '.git').exists():
+        fetch = run_cmd(['git', 'fetch', '--tags', 'origin'])
+        fetch_ok = fetch['ok']
+        fetch_error = fetch['stderr'] or fetch['stdout']
+    remote_version = get_remote_version() or 'unknown'
+
+    update_available = (
+        fetch_ok
+        and remote_version not in ('unknown', '', None)
+        and remote_version != local_version
+    )
+
     return {
-        'local': get_local_file_version(),
-        'remote': get_remote_version() or 'unknown',
+        'local': local_version,
+        'remote': remote_version,
+        'update_available': update_available,
+        'fetch_ok': fetch_ok,
+        'fetch_error': fetch_error,
     }
 
 
@@ -553,11 +572,15 @@ def restart_app():
 
 @app.route('/health')
 def health():
+    versions = get_versions_simple()
     return {
         'status': 'ok',
         'app': 'SkyJSON',
-        'server_version': get_local_file_version(),
-        'github_version': get_remote_version(),
+        'server_version': versions['local'],
+        'github_version': versions['remote'],
+        'update_available': versions['update_available'],
+        'fetch_ok': versions['fetch_ok'],
+        'fetch_error': versions['fetch_error'],
     }
 
 

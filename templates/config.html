@@ -88,8 +88,11 @@
                     <dd>{{ versions.remote }}</dd>
                 </div>
             </dl>
+            {% if not versions.fetch_ok %}
+            <div class="empty-state">GitHub check failed{% if versions.fetch_error %}: {{ versions.fetch_error }}{% endif %}</div>
+            {% endif %}
             <form method="post" action="{{ url_for('update_app') }}">
-                <button type="submit" class="btn btn-primary">Update from GitHub</button>
+                <button type="submit" class="btn {% if versions.update_available %}btn-primary{% else %}btn-secondary{% endif %}" {% if not versions.update_available %}disabled aria-disabled="true"{% endif %}>Update from GitHub</button>
             </form>
         </div>
 
