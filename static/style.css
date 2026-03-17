@@ -439,3 +439,120 @@ input:focus, select:focus { outline: none; border-color: rgba(132,221,255,.38); 
     min-height: 0;
   }
 }
+
+
+.subtitle {
+  font-size: 12px;
+}
+
+.fullscreen-toolbar {
+  margin-bottom: 16px;
+}
+
+.compact-stats {
+  margin-bottom: 14px;
+}
+
+.fullscreen-shell {
+  margin-top: 6px;
+}
+
+.aircraft-label {
+  background: rgba(7, 14, 26, .16);
+  color: rgba(238, 246, 255, .92);
+  border: 1px solid rgba(118, 213, 255, .08);
+  backdrop-filter: blur(2px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+}
+
+.sidebar-table-fit th:nth-child(1), .sidebar-table-fit td:nth-child(1) { width: 35%; }
+.sidebar-table-fit th:nth-child(2), .sidebar-table-fit td:nth-child(2) { width: 13%; }
+.sidebar-table-fit th:nth-child(3), .sidebar-table-fit td:nth-child(3) { width: 14%; }
+.sidebar-table-fit th:nth-child(4), .sidebar-table-fit td:nth-child(4) { width: 12%; }
+.sidebar-table-fit th:nth-child(5), .sidebar-table-fit td:nth-child(5) { width: 13%; text-align: right; }
+.sidebar-table-fit th:nth-child(6), .sidebar-table-fit td:nth-child(6) { width: 13%; text-align: right; }
+
+.sidebar-table th,
+.sidebar-table td {
+  padding: 5px 6px;
+  font-size: 10.5px;
+}
+.fit-flight-cell {
+  gap: 4px;
+}
+.small-flag {
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+}
+.sidebar-flight {
+  font-size: 10.5px;
+}
+.sidebar-hex {
+  font-size: 8.5px;
+}
+
+.sidebar-aircraft-row {
+  cursor: pointer;
+}
+.sidebar-aircraft-row:hover td {
+  background: rgba(97, 174, 252, .08) !important;
+}
+
+.sidebar-table thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+  position: sticky;
+}
+.sidebar-table thead th.sortable::after {
+  content: '↕';
+  font-size: 9px;
+  margin-left: 4px;
+  opacity: .35;
+}
+.sidebar-table thead th.sortable.active::after {
+  content: '↑';
+  opacity: .8;
+}
+.sidebar-table thead th.sortable.active.desc::after {
+  content: '↓';
+}
+
+.compact-search {
+  gap: 8px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 12px;
+  padding: 4px;
+}
+.compact-search input {
+  min-width: 280px;
+  height: 38px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0 10px;
+}
+.compact-search input:focus {
+  box-shadow: none;
+  border: 0;
+}
+.compact-search .btn {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+.compact-search .btn:hover {
+  box-shadow: 0 8px 20px rgba(0,0,0,.14);
+}
+
+@media (max-width: 680px) {
+  .compact-search {
+    width: 100%;
+  }
+  .compact-search input {
+    min-width: 0;
+    width: 100%;
+  }
+}

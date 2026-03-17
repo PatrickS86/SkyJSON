@@ -61,17 +61,17 @@
                 <table class="sidebar-table sidebar-table-fit">
                     <thead>
                         <tr>
-                            <th>Flight</th>
-                            <th>Reg</th>
-                            <th>Type</th>
-                            <th>Src</th>
-                            <th>Alt</th>
-                            <th>Spd</th>
+                            <th class="sortable active" data-sort="flight">Flight</th>
+                            <th class="sortable" data-sort="registration">Reg</th>
+                            <th class="sortable" data-sort="type">Type</th>
+                            <th class="sortable" data-sort="signal_source">Src</th>
+                            <th class="sortable" data-sort="alt_baro">Alt</th>
+                            <th class="sortable" data-sort="gs">Spd</th>
                         </tr>
                     </thead>
                     <tbody id="sidebar-body">
                     {% for a in aircraft %}
-                        <tr>
+                        <tr class="sidebar-aircraft-row" data-hex="{{ a.hex }}">
                             <td>
                                 <div class="sidebar-flight-cell fit-flight-cell">
                                     <span class="flag-badge small-flag" title="{{ a.country }}">{{ a.flag }}</span>
@@ -111,6 +111,51 @@ function altitudeColor(altitude) {
     if (alt < 15000) return '#f59e0b';
     if (alt < 30000) return '#ef4444';
     return '#8b5cf6';
+}
+
+
+let currentAircraft = {{ aircraft | tojson }};
+let sortState = { key: 'flight', dir: 'asc' };
+
+function compareValues(a, b, key) {
+    const av = a[key];
+    const bv = b[key];
+    const an = typeof av === 'number' ? av : Number(av);
+    const bn = typeof bv === 'number' ? bv : Number(bv);
+    const aNum = !Number.isNaN(an) && av !== null && av !== undefined && av !== '';
+    const bNum = !Number.isNaN(bn) && bv !== null && bv !== undefined && bv !== '';
+    if (aNum && bNum) return an - bn;
+    return String(av || '').localeCompare(String(bv || ''));
+}
+
+function sortAircraft(list) {
+    const arr = [...list];
+    arr.sort((a, b) => {
+        let res = compareValues(a, b, sortState.key);
+        if (sortState.key === 'flight' && res === 0) res = compareValues(a, b, 'registration');
+        return sortState.dir === 'asc' ? res : -res;
+    });
+    return arr;
+}
+
+function updateSortHeaders() {
+    document.querySelectorAll('.sidebar-table thead th.sortable').forEach(th => {
+        th.classList.toggle('active', th.dataset.sort === sortState.key);
+        th.classList.toggle('desc', th.dataset.sort === sortState.key && sortState.dir === 'desc');
+    });
+}
+
+function focusAircraftOnMap(hex) {
+    const entry = currentMapAircraft.find(a => a.hex === hex);
+    if (!entry || entry.lat === null || entry.lon === null) return;
+    let foundMarker = null;
+    markerLayer.eachLayer(layer => {
+        if (layer.aircraftHex === hex) foundMarker = layer;
+    });
+    if (foundMarker) {
+        map.setView([entry.lat, entry.lon], Math.max(map.getZoom(), 10), { animate: true });
+        foundMarker.openPopup();
+    }
 }
 
 const map = L.map('aircraft-map', { zoomControl: true, preferCanvas: true });
@@ -170,6 +215,7 @@ function renderMap(aircraftList, refit=false) {
             });
         }
 
+        marker.aircraftHex = aircraft.hex;
         marker.bindPopup(`
             <div class="popup-card popup-elevated compact-popup">
                 <div class="popup-topline" style="background:${color}"></div>
@@ -203,13 +249,15 @@ function renderMap(aircraftList, refit=false) {
 }
 
 function renderSidebar(aircraft) {
-    if (!aircraft.length) {
+    currentAircraft = aircraft;
+    const sortedAircraft = sortAircraft(aircraft);
+    if (!sortedAircraft.length) {
         sidebarBody.innerHTML = '<tr><td colspan="6" class="muted center">No aircraft matched your query.</td></tr>';
         resultsNote.textContent = '0 aircraft shown';
         return;
     }
-    sidebarBody.innerHTML = aircraft.map(a => `
-        <tr>
+    sidebarBody.innerHTML = sortedAircraft.map(a => `
+        <tr class="sidebar-aircraft-row" data-hex="${a.hex || ''}">
             <td>
                 <div class="sidebar-flight-cell fit-flight-cell">
                     <span class="flag-badge small-flag" title="${a.country || ''}">${a.flag || '🏳️'}</span>
@@ -226,7 +274,10 @@ function renderSidebar(aircraft) {
             <td>${a.gs ?? '—'}</td>
         </tr>
     `).join('');
-    resultsNote.textContent = `${aircraft.length} aircraft shown`;
+    resultsNote.textContent = `${sortedAircraft.length} aircraft shown`;
+    sidebarBody.querySelectorAll('.sidebar-aircraft-row').forEach(row => {
+        row.addEventListener('click', () => focusAircraftOnMap(row.dataset.hex));
+    });
 }
 
 function updateStats(stats) {
@@ -264,11 +315,27 @@ document.getElementById('search-form').addEventListener('submit', (e) => {
     refreshAircraft(true);
 });
 
+document.querySelectorAll('.sidebar-table thead th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+        const key = th.dataset.sort;
+        if (sortState.key === key) {
+            sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortState.key = key;
+            sortState.dir = 'asc';
+        }
+        updateSortHeaders();
+        renderSidebar(currentAircraft);
+    });
+});
+updateSortHeaders();
+
 for (const id of ['toggle-registration', 'toggle-callsign', 'toggle-type', 'toggle-altitude']) {
     document.getElementById(id).addEventListener('change', () => renderMap(currentMapAircraft, false));
 }
 
 renderMap(initialMapAircraft, true);
+renderSidebar(currentAircraft);
 setInterval(() => refreshAircraft(false), 1000);
 </script>
 {% endblock %}
