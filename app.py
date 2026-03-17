@@ -19,7 +19,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / 'config.db'
 DEFAULT_SECRET = 'change-me-skyjson-secret'
-APP_VERSION = '1.6.0'
+APP_VERSION = '1.7.0'
 REQUEST_TIMEOUT = 10
 GITHUB_SPONSOR_URL = 'https://github.com/sponsors/PatrickS86'
 
@@ -82,7 +82,6 @@ def require_installation(fn):
         if not is_installed() and request.endpoint not in {'setup', 'static'}:
             return redirect(url_for('setup'))
         return fn(*args, **kwargs)
-
     return wrapper
 
 
@@ -94,7 +93,6 @@ def config_login_required(fn):
         if config_auth_enabled() and not is_logged_in():
             return redirect(url_for('config_login', next=request.path))
         return fn(*args, **kwargs)
-
     return wrapper
 
 
@@ -147,11 +145,9 @@ def get_source_settings() -> Dict[str, str]:
 def read_payload_from_file(file_path: str) -> Dict[str, Any]:
     if not file_path:
         return {'error': 'No local aircraft.json path is configured yet.', 'aircraft': [], 'now': None}
-
     path = Path(file_path)
     if not path.exists():
         return {'error': f'Configured file was not found: {file_path}', 'aircraft': [], 'now': None}
-
     try:
         with path.open('r', encoding='utf-8') as f:
             return json.load(f)
@@ -162,7 +158,6 @@ def read_payload_from_file(file_path: str) -> Dict[str, Any]:
 def read_payload_from_url(url: str) -> Dict[str, Any]:
     if not url:
         return {'error': 'No remote aircraft.json URL is configured yet.', 'aircraft': [], 'now': None}
-
     try:
         response = requests.get(url, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
@@ -174,65 +169,28 @@ def read_payload_from_url(url: str) -> Dict[str, Any]:
 
 
 REGISTRATION_PREFIX_FLAGS = [
-    ('PH-', 'Netherlands', 'NL', '🇳🇱'),
-    ('OO-', 'Belgium', 'BE', '🇧🇪'),
-    ('D-', 'Germany', 'DE', '🇩🇪'),
-    ('F-', 'France', 'FR', '🇫🇷'),
-    ('G-', 'United Kingdom', 'GB', '🇬🇧'),
-    ('EI-', 'Ireland', 'IE', '🇮🇪'),
-    ('LX-', 'Luxembourg', 'LU', '🇱🇺'),
-    ('HB-', 'Switzerland', 'CH', '🇨🇭'),
-    ('OE-', 'Austria', 'AT', '🇦🇹'),
-    ('I-', 'Italy', 'IT', '🇮🇹'),
-    ('EC-', 'Spain', 'ES', '🇪🇸'),
-    ('CS-', 'Portugal', 'PT', '🇵🇹'),
-    ('SE-', 'Sweden', 'SE', '🇸🇪'),
-    ('LN-', 'Norway', 'NO', '🇳🇴'),
-    ('OY-', 'Denmark', 'DK', '🇩🇰'),
-    ('OH-', 'Finland', 'FI', '🇫🇮'),
-    ('TF-', 'Iceland', 'IS', '🇮🇸'),
-    ('SP-', 'Poland', 'PL', '🇵🇱'),
-    ('OK-', 'Czech Republic', 'CZ', '🇨🇿'),
-    ('OM-', 'Slovakia', 'SK', '🇸🇰'),
-    ('YR-', 'Romania', 'RO', '🇷🇴'),
-    ('HA-', 'Hungary', 'HU', '🇭🇺'),
-    ('S5-', 'Slovenia', 'SI', '🇸🇮'),
-    ('9A-', 'Croatia', 'HR', '🇭🇷'),
-    ('YU-', 'Serbia', 'RS', '🇷🇸'),
-    ('LZ-', 'Bulgaria', 'BG', '🇧🇬'),
-    ('SX-', 'Greece', 'GR', '🇬🇷'),
-    ('TC-', 'Turkey', 'TR', '🇹🇷'),
-    ('N', 'United States', 'US', '🇺🇸'),
-    ('C-', 'Canada', 'CA', '🇨🇦'),
-    ('PT-', 'Brazil', 'BR', '🇧🇷'),
-    ('VH-', 'Australia', 'AU', '🇦🇺'),
-    ('ZK-', 'New Zealand', 'NZ', '🇳🇿'),
-    ('JA', 'Japan', 'JP', '🇯🇵'),
-    ('B-', 'China', 'CN', '🇨🇳'),
-    ('HL', 'South Korea', 'KR', '🇰🇷'),
-    ('A6-', 'United Arab Emirates', 'AE', '🇦🇪'),
-    ('A7-', 'Qatar', 'QA', '🇶🇦'),
-    ('HZ-', 'Saudi Arabia', 'SA', '🇸🇦'),
-    ('4X-', 'Israel', 'IL', '🇮🇱'),
-    ('ZS-', 'South Africa', 'ZA', '🇿🇦'),
+    ('PH-', 'Netherlands', 'NL', '🇳🇱'), ('OO-', 'Belgium', 'BE', '🇧🇪'), ('D-', 'Germany', 'DE', '🇩🇪'),
+    ('F-', 'France', 'FR', '🇫🇷'), ('G-', 'United Kingdom', 'GB', '🇬🇧'), ('EI-', 'Ireland', 'IE', '🇮🇪'),
+    ('LX-', 'Luxembourg', 'LU', '🇱🇺'), ('HB-', 'Switzerland', 'CH', '🇨🇭'), ('OE-', 'Austria', 'AT', '🇦🇹'),
+    ('I-', 'Italy', 'IT', '🇮🇹'), ('EC-', 'Spain', 'ES', '🇪🇸'), ('CS-', 'Portugal', 'PT', '🇵🇹'),
+    ('SE-', 'Sweden', 'SE', '🇸🇪'), ('LN-', 'Norway', 'NO', '🇳🇴'), ('OY-', 'Denmark', 'DK', '🇩🇰'),
+    ('OH-', 'Finland', 'FI', '🇫🇮'), ('TF-', 'Iceland', 'IS', '🇮🇸'), ('SP-', 'Poland', 'PL', '🇵🇱'),
+    ('OK-', 'Czech Republic', 'CZ', '🇨🇿'), ('OM-', 'Slovakia', 'SK', '🇸🇰'), ('YR-', 'Romania', 'RO', '🇷🇴'),
+    ('HA-', 'Hungary', 'HU', '🇭🇺'), ('S5-', 'Slovenia', 'SI', '🇸🇮'), ('9A-', 'Croatia', 'HR', '🇭🇷'),
+    ('YU-', 'Serbia', 'RS', '🇷🇸'), ('LZ-', 'Bulgaria', 'BG', '🇧🇬'), ('SX-', 'Greece', 'GR', '🇬🇷'),
+    ('TC-', 'Turkey', 'TR', '🇹🇷'), ('N', 'United States', 'US', '🇺🇸'), ('C-', 'Canada', 'CA', '🇨🇦'),
+    ('PT-', 'Brazil', 'BR', '🇧🇷'), ('VH-', 'Australia', 'AU', '🇦🇺'), ('ZK-', 'New Zealand', 'NZ', '🇳🇿'),
+    ('JA', 'Japan', 'JP', '🇯🇵'), ('B-', 'China', 'CN', '🇨🇳'), ('HL', 'South Korea', 'KR', '🇰🇷'),
+    ('A6-', 'United Arab Emirates', 'AE', '🇦🇪'), ('A7-', 'Qatar', 'QA', '🇶🇦'), ('HZ-', 'Saudi Arabia', 'SA', '🇸🇦'),
+    ('4X-', 'Israel', 'IL', '🇮🇱'), ('ZS-', 'South Africa', 'ZA', '🇿🇦'),
 ]
 
 HEX_PREFIX_FLAGS = [
-    ('48', 'Netherlands', 'NL', '🇳🇱'),
-    ('44', 'United Kingdom', 'GB', '🇬🇧'),
-    ('3C', 'Germany', 'DE', '🇩🇪'),
-    ('39', 'Italy', 'IT', '🇮🇹'),
-    ('4B', 'Switzerland', 'CH', '🇨🇭'),
-    ('4C', 'Ireland', 'IE', '🇮🇪'),
-    ('49', 'Belgium', 'BE', '🇧🇪'),
-    ('46', 'Sweden', 'SE', '🇸🇪'),
-    ('47', 'Norway', 'NO', '🇳🇴'),
-    ('45', 'Denmark', 'DK', '🇩🇰'),
-    ('43', 'Austria', 'AT', '🇦🇹'),
-    ('38', 'France', 'FR', '🇫🇷'),
-    ('34', 'Spain', 'ES', '🇪🇸'),
-    ('35', 'Portugal', 'PT', '🇵🇹'),
-    ('4A', 'Romania', 'RO', '🇷🇴'),
+    ('48', 'Netherlands', 'NL', '🇳🇱'), ('44', 'United Kingdom', 'GB', '🇬🇧'), ('3C', 'Germany', 'DE', '🇩🇪'),
+    ('39', 'Italy', 'IT', '🇮🇹'), ('4B', 'Switzerland', 'CH', '🇨🇭'), ('4C', 'Ireland', 'IE', '🇮🇪'),
+    ('49', 'Belgium', 'BE', '🇧🇪'), ('46', 'Sweden', 'SE', '🇸🇪'), ('47', 'Norway', 'NO', '🇳🇴'),
+    ('45', 'Denmark', 'DK', '🇩🇰'), ('43', 'Austria', 'AT', '🇦🇹'), ('38', 'France', 'FR', '🇫🇷'),
+    ('34', 'Spain', 'ES', '🇪🇸'), ('35', 'Portugal', 'PT', '🇵🇹'), ('4A', 'Romania', 'RO', '🇷🇴'),
     ('7C', 'Australia', 'AU', '🇦🇺'),
 ]
 
@@ -240,26 +198,32 @@ HEX_PREFIX_FLAGS = [
 def get_country_info(hex_code: str, registration: str) -> Dict[str, str]:
     reg = (registration or '').strip().upper()
     hex_upper = (hex_code or '').strip().upper()
-
     for prefix, name, code, flag in REGISTRATION_PREFIX_FLAGS:
         if reg.startswith(prefix):
             return {'country': name, 'country_code': code, 'flag': flag}
-
     for prefix, name, code, flag in HEX_PREFIX_FLAGS:
         if hex_upper.startswith(prefix):
             return {'country': name, 'country_code': code, 'flag': flag}
-
     return {'country': 'Unknown', 'country_code': '', 'flag': '🏳️'}
+
+
+def detect_signal_source(item: Dict[str, Any]) -> str:
+    source_raw = (item.get('type') or item.get('dbFlags') or '').strip().lower()
+    if 'mlat' in source_raw:
+        return 'MLAT'
+    if 'mode_s' in source_raw or 'mode-s' in source_raw or source_raw == 'modes':
+        return 'Mode-S'
+    if 'adsb' in source_raw or 'ads-b' in source_raw:
+        return 'ADS-B'
+    if item.get('lat') is not None and item.get('lon') is not None:
+        return 'ADS-B'
+    return 'Unknown'
 
 
 def load_aircraft() -> Dict[str, Any]:
     source_settings = get_source_settings()
     source_type = source_settings['source_type']
-
-    if source_type == 'url':
-        payload = read_payload_from_url(source_settings['aircraft_url'])
-    else:
-        payload = read_payload_from_file(source_settings['aircraft_path'])
+    payload = read_payload_from_url(source_settings['aircraft_url']) if source_type == 'url' else read_payload_from_file(source_settings['aircraft_path'])
 
     if payload.get('error'):
         payload['source_label'] = f"Remote URL: {source_settings['aircraft_url']}" if source_type == 'url' else f"Local file: {source_settings['aircraft_path']}"
@@ -275,6 +239,7 @@ def load_aircraft() -> Dict[str, Any]:
                 'flight': (item.get('flight') or '').strip(),
                 'registration': item.get('r', ''),
                 'type': item.get('t', ''),
+                'signal_source': detect_signal_source(item),
                 'category': item.get('category', ''),
                 'squawk': item.get('squawk', ''),
                 'alt_baro': safe_int(item.get('alt_baro')),
@@ -292,7 +257,7 @@ def load_aircraft() -> Dict[str, Any]:
             }
         )
 
-    aircraft.sort(key=lambda x: ((x['flight'] or x['hex']).lower(), x['hex']))
+    aircraft.sort(key=lambda x: ((x['flight'] or x['registration'] or x['hex']).lower(), x['hex']))
     source_label = f"Remote URL: {source_settings['aircraft_url']}" if source_type == 'url' else f"Local file: {source_settings['aircraft_path']}"
     return {'error': None, 'aircraft': aircraft, 'now': payload.get('now'), 'source_label': source_label}
 
@@ -311,20 +276,8 @@ def summarize_aircraft(aircraft: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 def run_cmd(args: List[str]) -> Dict[str, Any]:
     try:
-        result = subprocess.run(
-            args,
-            cwd=BASE_DIR,
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=False,
-        )
-        return {
-            'ok': result.returncode == 0,
-            'code': result.returncode,
-            'stdout': result.stdout.strip(),
-            'stderr': result.stderr.strip(),
-        }
+        result = subprocess.run(args, cwd=BASE_DIR, capture_output=True, text=True, timeout=60, check=False)
+        return {'ok': result.returncode == 0, 'code': result.returncode, 'stdout': result.stdout.strip(), 'stderr': result.stderr.strip()}
     except Exception as exc:
         return {'ok': False, 'code': -1, 'stdout': '', 'stderr': str(exc)}
 
@@ -452,6 +405,7 @@ def index():
             or query in (a['registration'] or '').lower()
             or query in (a['type'] or '').lower()
             or query in (a['country'] or '').lower()
+            or query in (a['signal_source'] or '').lower()
         ]
 
     map_aircraft = [
@@ -460,6 +414,7 @@ def index():
             'flight': a['flight'],
             'registration': a['registration'],
             'type': a['type'],
+            'signal_source': a['signal_source'],
             'alt_baro': a['alt_baro'],
             'gs': a['gs'],
             'track': a['track'],
@@ -506,7 +461,6 @@ def setup():
         if source_type == 'url' and not aircraft_url:
             flash('Please enter a remote URL to aircraft.json.', 'danger')
             return render_template('setup.html')
-
         if enable_auth and (not username or not password):
             flash('When configuration protection is enabled, a username and password are required.', 'danger')
             return render_template('setup.html')
@@ -576,7 +530,6 @@ def config():
 
         enable_auth = request.form.get('enable_auth') == 'on'
         set_setting('config_auth_enabled', '1' if enable_auth else '0')
-
         if enable_auth:
             username = (request.form.get('username') or '').strip()
             password = (request.form.get('password') or '').strip()
@@ -608,7 +561,6 @@ def update_app():
     if not status.get('supported'):
         flash(status.get('message', 'Updates are not supported for this installation.'), 'danger')
         return redirect(url_for('config'))
-
     pull = run_cmd(['git', 'pull', '--ff-only'])
     if pull['ok']:
         flash('SkyJSON was updated successfully. Restart the application to load the new version.', 'success')

@@ -6,151 +6,99 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 {% endblock %}
 {% block content %}
-<div class="compact-header">
+<div class="fullscreen-toolbar">
     <div>
         <div class="compact-badge">Live aircraft monitoring</div>
         <h1>SkyJSON</h1>
     </div>
-    <form method="get" class="search-form compact-search">
-        <input type="text" name="q" placeholder="Search aircraft" value="{{ request.args.get('q', '') }}">
-        <button type="submit" class="btn btn-primary">Search</button>
-    </form>
+    <div class="toolbar-right">
+        <div class="label-toggles compact-toggles">
+            <label><input type="checkbox" id="toggle-registration" checked> reg</label>
+            <label><input type="checkbox" id="toggle-callsign" checked> callsign</label>
+            <label><input type="checkbox" id="toggle-type"> type</label>
+            <label><input type="checkbox" id="toggle-altitude"> alt</label>
+        </div>
+        <form method="get" class="search-form compact-search">
+            <input type="text" name="q" placeholder="Search aircraft, type, source" value="{{ request.args.get('q', '') }}">
+            <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+    </div>
 </div>
 
 <div class="grid stats-grid compact-stats">
-    <div class="card stat-card">
-        <div class="label">Aircraft</div>
-        <div class="value">{{ stats.total }}</div>
-    </div>
-    <div class="card stat-card">
-        <div class="label">Visible</div>
-        <div class="value">{{ stats.with_position }}</div>
-    </div>
-    <div class="card stat-card">
-        <div class="label">Avg Alt</div>
-        <div class="value">{{ stats.avg_altitude if stats.avg_altitude is not none else '—' }}</div>
-    </div>
-    <div class="card stat-card">
-        <div class="label">Avg Speed</div>
-        <div class="value">{{ stats.avg_speed if stats.avg_speed is not none else '—' }}</div>
-    </div>
+    <div class="card stat-card"><div class="label">Aircraft</div><div class="value">{{ stats.total }}</div></div>
+    <div class="card stat-card"><div class="label">Visible</div><div class="value">{{ stats.with_position }}</div></div>
+    <div class="card stat-card"><div class="label">Avg Alt</div><div class="value">{{ stats.avg_altitude if stats.avg_altitude is not none else '—' }}</div></div>
+    <div class="card stat-card"><div class="label">Avg Speed</div><div class="value">{{ stats.avg_speed if stats.avg_speed is not none else '—' }}</div></div>
 </div>
 
-<div class="card dashboard-shell compact-shell">
+<div class="fullscreen-shell card">
     {% if error %}
     <div class="empty-state">{{ error }}</div>
     {% else %}
-        <div class="map-toolbar compact-toolbar">
-            <div class="map-toolbar-title">
-                <h2>Aircraft overview</h2>
-                <p class="muted small">Toggle which label parts appear on the map.</p>
-            </div>
-            <div class="label-toggles compact-toggles">
-                <label><input type="checkbox" id="toggle-registration" checked> reg</label>
-                <label><input type="checkbox" id="toggle-callsign" checked> callsign</label>
-                <label><input type="checkbox" id="toggle-type"> type</label>
-                <label><input type="checkbox" id="toggle-altitude"> alt</label>
-            </div>
-        </div>
-
-        <div class="map-list-layout">
-            <div class="map-column">
-                {% if map_aircraft %}
-                <div class="map-shell map-shell-compact">
-                    <div id="aircraft-map"></div>
-                    <div class="legend-row legend-row-compact">
-                        <span><i class="legend-dot alt-low"></i> low</span>
-                        <span><i class="legend-dot alt-mid"></i> medium</span>
-                        <span><i class="legend-dot alt-high"></i> high</span>
-                        <span><i class="legend-dot alt-very-high"></i> very high</span>
-                    </div>
+    <div class="map-sidebar-layout">
+        <section class="map-pane">
+            {% if map_aircraft %}
+            <div class="map-shell map-shell-fullscreen">
+                <div id="aircraft-map"></div>
+                <div class="legend-row legend-row-compact">
+                    <span><i class="legend-dot alt-low"></i> low</span>
+                    <span><i class="legend-dot alt-mid"></i> medium</span>
+                    <span><i class="legend-dot alt-high"></i> high</span>
+                    <span><i class="legend-dot alt-very-high"></i> very high</span>
                 </div>
-                {% else %}
-                <div class="empty-state">No aircraft positions available for the map.</div>
-                {% endif %}
             </div>
+            {% else %}
+            <div class="empty-state">No aircraft positions available for the map.</div>
+            {% endif %}
+        </section>
 
-            <aside class="list-column">
-                <div class="list-panel-header">
-                    <div>
-                        <h3>Aircraft list</h3>
-                        <p class="muted small">{{ aircraft|length }} of {{ total_results }} shown</p>
-                    </div>
-                </div>
-
-                <div class="compact-aircraft-list">
-                    {% for a in aircraft %}
-                    <div class="aircraft-item">
-                        <div class="aircraft-item-top">
-                            <div class="aircraft-main">
-                                <span class="flag-badge small-flag" title="{{ a.country }}">{{ a.flag }}</span>
-                                <div>
-                                    <div class="aircraft-title">{{ a.flight or a.registration or a.hex }}</div>
-                                    <div class="aircraft-subtitle">{{ a.registration or '—' }} · {{ a.type or '—' }}</div>
-                                </div>
-                            </div>
-                            <div class="aircraft-alt">{{ a.alt_baro if a.alt_baro is not none else '—' }}</div>
-                        </div>
-                        <div class="aircraft-meta-row">
-                            <span>{{ a.hex }}</span>
-                            <span>{{ a.gs if a.gs is not none else '—' }} kt</span>
-                            <span>{{ a.track if a.track is not none else '—' }}°</span>
-                        </div>
-                    </div>
-                    {% else %}
-                    <div class="empty-state">No aircraft matched your query.</div>
-                    {% endfor %}
-                </div>
-            </aside>
-        </div>
-
-        <div class="table-section">
-            <div class="list-toolbar compact-list-toolbar">
+        <aside class="sidebar-pane">
+            <div class="sidebar-header">
                 <div>
-                    <h2>Detailed table</h2>
-                    <p class="muted small">Full aircraft data in table view.</p>
+                    <h2>Received aircraft</h2>
+                    <p class="muted small">{{ aircraft|length }} of {{ total_results }} shown</p>
                 </div>
             </div>
-            <div class="table-wrap table-wrap-smooth compact-table-wrap">
-                <table>
+
+            <div class="sidebar-table-wrap">
+                <table class="sidebar-table">
                     <thead>
                         <tr>
-                            <th>Hex</th>
-                            <th>Callsign</th>
-                            <th>Flag</th>
-                            <th>Registration</th>
+                            <th>Flight</th>
+                            <th>Reg</th>
                             <th>Type</th>
-                            <th>Altitude</th>
-                            <th>Speed</th>
-                            <th>Track</th>
-                            <th>Lat</th>
-                            <th>Lon</th>
-                            <th>Messages</th>
+                            <th>Src</th>
+                            <th>Alt</th>
+                            <th>Spd</th>
                         </tr>
                     </thead>
                     <tbody>
                     {% for a in aircraft %}
                         <tr>
-                            <td>{{ a.hex }}</td>
-                            <td>{{ a.flight or '—' }}</td>
-                            <td><span class="flag-badge small-flag" title="{{ a.country }}">{{ a.flag }}</span></td>
+                            <td>
+                                <div class="sidebar-flight-cell">
+                                    <span class="flag-badge small-flag" title="{{ a.country }}">{{ a.flag }}</span>
+                                    <div>
+                                        <div class="sidebar-flight">{{ a.flight or a.hex }}</div>
+                                        <div class="sidebar-hex">{{ a.hex }}</div>
+                                    </div>
+                                </div>
+                            </td>
                             <td>{{ a.registration or '—' }}</td>
                             <td>{{ a.type or '—' }}</td>
+                            <td><span class="source-badge source-{{ a.signal_source|lower|replace('-', '')|replace(' ', '') }}">{{ a.signal_source }}</span></td>
                             <td>{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
                             <td>{{ a.gs if a.gs is not none else '—' }}</td>
-                            <td>{{ a.track if a.track is not none else '—' }}</td>
-                            <td>{{ a.lat if a.lat is not none else '—' }}</td>
-                            <td>{{ a.lon if a.lon is not none else '—' }}</td>
-                            <td>{{ a.messages if a.messages is not none else '—' }}</td>
                         </tr>
                     {% else %}
-                        <tr><td colspan="11" class="muted center">No aircraft matched your query.</td></tr>
+                        <tr><td colspan="6" class="muted center">No aircraft matched your query.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
             </div>
-            <p class="muted small footer-note">Flags are estimated from the registration prefix or ICAO hex range and may not always be exact.</p>
-        </div>
+        </aside>
+    </div>
     {% endif %}
 </div>
 
@@ -243,10 +191,10 @@ for (const aircraft of aircraftData) {
             <div class="popup-grid">
                 <div><span>HEX</span><strong>${aircraft.hex || '—'}</strong></div>
                 <div><span>Type</span><strong>${aircraft.type || '—'}</strong></div>
+                <div><span>Source</span><strong>${aircraft.signal_source || '—'}</strong></div>
                 <div><span>Altitude</span><strong>${aircraft.alt_baro ?? '—'}</strong></div>
                 <div><span>Speed</span><strong>${aircraft.gs ?? '—'}</strong></div>
                 <div><span>Track</span><strong>${aircraft.track ?? '—'}</strong></div>
-                <div><span>Country</span><strong>${aircraft.country || 'Unknown'}</strong></div>
             </div>
         </div>
     `);
