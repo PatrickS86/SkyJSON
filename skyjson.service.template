@@ -1,0 +1,19 @@
+[Unit]
+Description=SkyJSON web application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__APP_USER__
+Group=__APP_USER__
+WorkingDirectory=__APP_DIR__
+EnvironmentFile=/etc/default/skyjson
+ExecStart=__APP_DIR__/.venv/bin/python __APP_DIR__/app.py
+Restart=always
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target
