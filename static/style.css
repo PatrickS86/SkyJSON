@@ -354,13 +354,13 @@ input:focus, select:focus {
 }
 
 .aircraft-label {
-  background: rgba(7, 14, 26, .03);
-  color: rgba(238, 246, 255, .82);
-  border: 1px solid rgba(118, 213, 255, .035);
-  backdrop-filter: blur(1px);
+  background: rgba(7, 14, 26, .08);
+  color: rgba(238, 246, 255, .9);
+  border: 1px solid rgba(118, 213, 255, .06);
+  backdrop-filter: blur(2px);
   border-radius: 10px;
   padding: 4px 8px;
-  box-shadow: 0 4px 10px rgba(0,0,0,.06);
+  box-shadow: 0 6px 18px rgba(0,0,0,.10);
   font-size: 12px;
   font-weight: 700;
 }
@@ -555,4 +555,18 @@ input:focus, select:focus {
   .config-grid {
     grid-template-columns: 1fr;
   }
+}
+
+
+.aircraft-label,
+.leaflet-tooltip.aircraft-label {
+  background: rgba(7, 14, 26, 0.01) !important;
+  color: rgba(238, 246, 255, 0.72) !important;
+  border: 1px solid rgba(118, 213, 255, 0.02) !important;
+  backdrop-filter: blur(0px) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+.leaflet-tooltip.aircraft-label:before {
+  display: none !important;
 }

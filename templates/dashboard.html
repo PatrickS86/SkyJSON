@@ -142,6 +142,7 @@ let currentMapAircraft = initialMapAircraft;
 let currentAircraft = initialAircraft;
 let sortState = { key: 'flight', dir: 'asc' };
 let selectedAircraftHex = null;
+let refreshingMap = false;
 
 function compareValues(a, b, key) {
     const av = a[key];
@@ -206,6 +207,7 @@ function focusAircraftOnMap(hex) {
 
 function renderMap(aircraftList, refit=false) {
     currentMapAircraft = aircraftList;
+    refreshingMap = true;
     markerLayer.clearLayers();
     const bounds = [];
 
@@ -238,7 +240,7 @@ function renderMap(aircraftList, refit=false) {
             selectedAircraftHex = aircraft.hex || null;
         });
         marker.on('popupclose', () => {
-            if (selectedAircraftHex === aircraft.hex) {
+            if (!refreshingMap && selectedAircraftHex === aircraft.hex) {
                 selectedAircraftHex = null;
             }
         });
@@ -276,6 +278,7 @@ function renderMap(aircraftList, refit=false) {
         map.fitBounds(bounds, { padding: [20, 20] });
         firstFitDone = true;
     }
+    refreshingMap = false;
 }
 
 function renderSidebar(aircraft) {
@@ -368,6 +371,10 @@ for (const id of ['toggle-registration', 'toggle-callsign', 'toggle-type', 'togg
 
 renderMap(initialMapAircraft, true);
 renderSidebar(initialAircraft);
+map.on('click', () => {
+    selectedAircraftHex = null;
+});
+
 setInterval(() => refreshAircraft(false), 1000);
 </script>
 {% endblock %}
