@@ -57,7 +57,7 @@
             <div class="sidebar-header">
                 <div>
                     <h2>Received aircraft</h2>
-                    <p class="muted small">All received aircraft are shown</p>
+                    <p class="muted small">{{ aircraft|length }} of {{ total_results }} shown</p>
                 </div>
             </div>
 
@@ -99,6 +99,9 @@
             </div>
         </aside>
     </div>
+    {% endif %}
+</div>
+
 {% if map_aircraft %}
 <script>
 const aircraftData = {{ map_aircraft | tojson }};
@@ -211,5 +214,4 @@ for (const id of ['toggle-registration', 'toggle-callsign', 'toggle-type', 'togg
 updateLabels();
 </script>
 {% endif %}
-
 {% endblock %}

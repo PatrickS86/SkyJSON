@@ -19,7 +19,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / 'config.db'
 DEFAULT_SECRET = 'change-me-skyjson-secret'
-APP_VERSION = '1.7.0'
+APP_VERSION = '1.7.1'
 REQUEST_TIMEOUT = 10
 GITHUB_SPONSOR_URL = 'https://github.com/sponsors/PatrickS86'
 
