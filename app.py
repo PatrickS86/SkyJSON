@@ -94,145 +94,38 @@ def read_version_from_path(path: Path) -> Optional[str]:
     if not path.exists():
         return None
     try:
-        return read_version_from_text(path.read_text(encoding='utf-8'))
+        content = path.read_text(encoding='utf-8').strip()
     except Exception:
         return None
-
-
-def get_running_version() -> str:
-    return APP_VERSION
+    if path.name == 'VERSION':
+        return content or None
+    return read_version_from_text(content)
 
 
 def get_local_file_version() -> str:
-    return read_version_from_path(BASE_DIR / 'app.py') or APP_VERSION
-
-
-def get_head_version() -> Optional[str]:
-    if not (BASE_DIR / '.git').exists():
-        return None
-    show = run_cmd(['git', 'show', 'HEAD:app.py'])
-    if show['ok'] and show['stdout']:
-        return read_version_from_text(show['stdout'])
-    return None
-
-
-def get_upstream_ref() -> Optional[str]:
-    if not (BASE_DIR / '.git').exists():
-        return None
-    upstream = run_cmd(['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
-    if upstream['ok'] and upstream['stdout']:
-        return upstream['stdout']
-    return None
+    return read_version_from_path(VERSION_FILE) or read_version_from_path(BASE_DIR / 'app.py') or APP_VERSION
 
 
 def get_remote_version() -> Optional[str]:
-    upstream = get_upstream_ref()
-    if not upstream:
+    if not (BASE_DIR / '.git').exists():
         return None
-    show = run_cmd(['git', 'show', f'{upstream}:VERSION'])
+    upstream = run_cmd(['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
+    if not upstream['ok'] or not upstream['stdout']:
+        return None
+    show = run_cmd(['git', 'show', f"{upstream['stdout']}:VERSION"])
     if show['ok'] and show['stdout']:
         return show['stdout'].strip()
-    show = run_cmd(['git', 'show', f'{upstream}:app.py'])
+    show = run_cmd(['git', 'show', f"{upstream['stdout']}:app.py"])
     if show['ok'] and show['stdout']:
         return read_version_from_text(show['stdout'])
     return None
 
 
-def parse_version(version: Optional[str]) -> Optional[Tuple[int, int, int]]:
-    if not version:
-        return None
-    match = re.search(r'(\d+)\.(\d+)\.(\d+)', version)
-    if not match:
-        return None
-    return tuple(int(part) for part in match.groups())
-
-
-def compare_versions(current: Optional[str], remote: Optional[str]) -> Optional[str]:
-    current_parsed = parse_version(current)
-    remote_parsed = parse_version(remote)
-    if not current_parsed or not remote_parsed or remote_parsed <= current_parsed:
-        return None
-    if remote_parsed[0] > current_parsed[0]:
-        return 'major'
-    if remote_parsed[1] > current_parsed[1]:
-        return 'minor'
-    return 'patch'
-
-
-def get_repo_status() -> Dict[str, Any]:
-    running_version = get_running_version()
-    local_file_version = get_local_file_version()
-    head_version = get_head_version()
-
-    status = {
-        'supported': (BASE_DIR / '.git').exists(),
-        'running_version': running_version,
-        'local_file_version': local_file_version,
-        'head_version': head_version or '—',
-        'remote_version': '—',
-        'update_kind': None,
-        'branch': '—',
-        'current_commit': '—',
-        'remote_commit': '—',
-        'ahead_count': '0',
-        'behind_count': '0',
-        'dirty': False,
-        'message': 'Git repository not detected.',
+def get_versions_simple() -> Dict[str, str]:
+    return {
+        'local': get_local_file_version(),
+        'remote': get_remote_version() or 'unknown',
     }
-
-    if not status['supported']:
-        return status
-
-    fetch = run_cmd(['git', 'fetch', '--tags', 'origin'])
-    if not fetch['ok']:
-        status['message'] = f"Git fetch failed: {fetch['stderr'] or fetch['stdout']}"
-        return status
-
-    branch = run_cmd(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
-    head_commit = run_cmd(['git', 'rev-parse', 'HEAD'])
-    upstream = get_upstream_ref()
-    dirty = run_cmd(['git', 'status', '--porcelain'])
-
-    if branch['ok'] and branch['stdout']:
-        status['branch'] = branch['stdout']
-    if head_commit['ok'] and head_commit['stdout']:
-        status['current_commit'] = head_commit['stdout'][:7]
-    status['dirty'] = bool(dirty['stdout'])
-
-    if not upstream:
-        status['message'] = 'No upstream branch is configured for this repository.'
-        return status
-
-    remote_commit = run_cmd(['git', 'rev-parse', upstream])
-    ahead_count = run_cmd(['git', 'rev-list', '--count', f'{upstream}..HEAD'])
-    behind_count = run_cmd(['git', 'rev-list', '--count', f'HEAD..{upstream}'])
-    remote_version = get_remote_version()
-
-    if remote_commit['ok'] and remote_commit['stdout']:
-        status['remote_commit'] = remote_commit['stdout'][:7]
-    if ahead_count['ok'] and ahead_count['stdout']:
-        status['ahead_count'] = ahead_count['stdout']
-    if behind_count['ok'] and behind_count['stdout']:
-        status['behind_count'] = behind_count['stdout']
-    if remote_version:
-        status['remote_version'] = remote_version
-
-    status['update_kind'] = compare_versions(local_file_version, remote_version)
-
-    if status['behind_count'] != '0' and status['update_kind']:
-        status['message'] = f"A {status['update_kind']} update is available on GitHub."
-    elif status['behind_count'] != '0':
-        status['message'] = 'A Git update is available on GitHub.'
-    elif status['running_version'] != status['local_file_version']:
-        status['message'] = 'The running app version does not match the app.py file on disk. Restart is required.'
-    elif status['head_version'] != '—' and status['local_file_version'] != status['head_version']:
-        status['message'] = 'The app.py file on disk does not match Git HEAD.'
-    elif status['dirty']:
-        status['message'] = 'Repository has local uncommitted changes.'
-    else:
-        status['message'] = 'SkyJSON is up to date.'
-
-    return status
 
 
 def is_installed() -> bool:
@@ -276,7 +169,6 @@ def inject_globals():
     return {
         'app_title': 'SkyJSON',
         'app_version': get_local_file_version(),
-        'running_version': get_running_version(),
         'config_auth_enabled': config_auth_enabled(),
         'is_logged_in': is_logged_in(),
         'github_donation_url': get_github_donation_url(),
@@ -339,20 +231,18 @@ def read_payload_from_url(url: str) -> Dict[str, Any]:
 
 
 REGISTRATION_PREFIX_FLAGS = [
-    ('PH-', 'Netherlands', 'NL', '🇳🇱'), ('OO-', 'Belgium', 'BE', '🇧🇪'), ('D-', 'Germany', 'DE', '🇩🇪'),
-    ('F-', 'France', 'FR', '🇫🇷'), ('G-', 'United Kingdom', 'GB', '🇬🇧'), ('EI-', 'Ireland', 'IE', '🇮🇪'),
-    ('LX-', 'Luxembourg', 'LU', '🇱🇺'), ('HB-', 'Switzerland', 'CH', '🇨🇭'), ('OE-', 'Austria', 'AT', '🇦🇹'),
-    ('I-', 'Italy', 'IT', '🇮🇹'), ('EC-', 'Spain', 'ES', '🇪🇸'), ('CS-', 'Portugal', 'PT', '🇵🇹'),
-    ('SE-', 'Sweden', 'SE', '🇸🇪'), ('LN-', 'Norway', 'NO', '🇳🇴'), ('OY-', 'Denmark', 'DK', '🇩🇰'),
-    ('OH-', 'Finland', 'FI', '🇫🇮'), ('TF-', 'Iceland', 'IS', '🇮🇸'), ('SP-', 'Poland', 'PL', '🇵🇱'),
-    ('OK-', 'Czech Republic', 'CZ', '🇨🇿'), ('OM-', 'Slovakia', 'SK', '🇸🇰'), ('YR-', 'Romania', 'RO', '🇷🇴'),
-    ('HA-', 'Hungary', 'HU', '🇭🇺'), ('S5-', 'Slovenia', 'SI', '🇸🇮'), ('9A-', 'Croatia', 'HR', '🇭🇷'),
-    ('YU-', 'Serbia', 'RS', '🇷🇸'), ('LZ-', 'Bulgaria', 'BG', '🇧🇬'), ('SX-', 'Greece', 'GR', '🇬🇷'),
-    ('TC-', 'Turkey', 'TR', '🇹🇷'), ('N', 'United States', 'US', '🇺🇸'), ('C-', 'Canada', 'CA', '🇨🇦'),
+    ('PH-', 'Netherlands', 'NL', '🇳🇱'),
+    ('OO-', 'Belgium', 'BE', '🇧🇪'),
+    ('D-', 'Germany', 'DE', '🇩🇪'),
+    ('F-', 'France', 'FR', '🇫🇷'),
+    ('G-', 'United Kingdom', 'GB', '🇬🇧'),
+    ('N', 'United States', 'US', '🇺🇸'),
+    ('C-', 'Canada', 'CA', '🇨🇦'),
 ]
 
 HEX_PREFIX_FLAGS = [
-    ('48', 'Netherlands', 'NL', '🇳🇱'), ('44', 'United Kingdom', 'GB', '🇬🇧'),
+    ('48', 'Netherlands', 'NL', '🇳🇱'),
+    ('44', 'United Kingdom', 'GB', '🇬🇧'),
 ]
 
 
@@ -616,7 +506,7 @@ def config():
         flash('Configuration saved.', 'success')
         return redirect(url_for('config'))
 
-    update_status = get_repo_status()
+    versions = get_versions_simple()
     source_settings = get_source_settings()
     settings = {
         'source_type': source_settings['source_type'],
@@ -624,16 +514,12 @@ def config():
         'aircraft_url': source_settings['aircraft_url'],
         'config_username': get_setting('config_username', ''),
     }
-    return render_template('config.html', update_status=update_status, settings=settings)
+    return render_template('config.html', versions=versions, settings=settings)
 
 
 @app.route('/config/update', methods=['POST'])
 @config_login_required
 def update_app():
-    status = get_repo_status()
-    if not status.get('supported'):
-        flash(status.get('message', 'Updates are not supported for this installation.'), 'danger')
-        return redirect(url_for('config'))
     pull = run_cmd(['git', 'pull', '--ff-only'])
     if pull['ok']:
         flash('SkyJSON was updated successfully. Restart the application to load the new version.', 'success')
@@ -670,10 +556,8 @@ def health():
     return {
         'status': 'ok',
         'app': 'SkyJSON',
-        'running_version': get_running_version(),
-        'file_version': get_local_file_version(),
-        'head_version': get_head_version(),
-        'remote_version': get_remote_version(),
+        'server_version': get_local_file_version(),
+        'github_version': get_remote_version(),
     }
 
 
