@@ -3,6 +3,7 @@
 <div class="card narrow">
     <h1>Welcome to SkyJSON</h1>
     <p class="muted">Complete the web installer to configure the application. This only needs to be done once.</p>
+
     <form method="post" class="form-grid">
         <label>Aircraft data source
             <select name="source_type">
@@ -10,29 +11,30 @@
                 <option value="url">Remote URL</option>
             </select>
         </label>
+
         <label>Local path to aircraft.json
             <input type="text" name="aircraft_path" placeholder="/run/readsb/aircraft.json">
         </label>
+
         <label>Remote URL to aircraft.json
             <input type="url" name="aircraft_url" placeholder="http://192.168.1.50/aircraft.json">
         </label>
-        <div class="two-col">
-            <label>Rows shown on dashboard
-                <input type="number" name="rows_per_page" value="100" min="10" max="5000">
-            </label>
-            <label>Refresh interval (seconds)
-                <input type="number" name="refresh_interval" value="15" min="5" max="300">
-            </label>
-        </div>
-        <label class="checkbox-row"><input type="checkbox" name="enable_auth"> Protect configuration panel</label>
+
+        <label class="checkbox-row">
+            <input type="checkbox" name="enable_auth">
+            Protect configuration panel
+        </label>
+
         <div class="two-col">
             <label>Configuration username
                 <input type="text" name="username" placeholder="Only required when protection is enabled">
             </label>
+
             <label>Configuration password
                 <input type="password" name="password" placeholder="Only required when protection is enabled">
             </label>
         </div>
+
         <button type="submit" class="btn btn-primary">Finish setup</button>
     </form>
 </div>
