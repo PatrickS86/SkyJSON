@@ -19,7 +19,6 @@
             <p class="muted">Source: {{ source_path or 'not configured' }}</p>
         </div>
         <div class="toolbar-actions">
-            <a class="btn btn-secondary" href="{{ github_donation_url }}" target="_blank" rel="noopener">Sponsor the developer</a>
             <form method="get" class="search-form">
                 <input type="text" name="q" placeholder="Search hex, callsign, registration, type or country" value="{{ request.args.get('q', '') }}">
                 <button type="submit" class="btn btn-primary">Search</button>

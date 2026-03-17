@@ -4,9 +4,10 @@
     <h1>Welcome to SkyJSON</h1>
     <p class="muted">Complete the web installer to configure the application. This only needs to be done once.</p>
     <form method="post" class="form-grid">
-        <label>Application title
-            <input type="text" name="app_title" value="SkyJSON" required>
-        </label>
+        <div class="info-callout">
+            <strong>Application name</strong>
+            <p class="muted">The application name is fixed and always stays <strong>SkyJSON</strong>.</p>
+        </div>
         <label>Aircraft data source
             <select name="source_type">
                 <option value="file">Local file</option>
@@ -27,9 +28,6 @@
                 <input type="number" name="refresh_interval" value="15" min="5" max="300">
             </label>
         </div>
-        <label>Restart command
-            <input type="text" name="restart_command" value="{{ default_restart_command }}">
-        </label>
         <label class="checkbox-row"><input type="checkbox" name="enable_auth"> Protect configuration panel</label>
         <div class="two-col">
             <label>Configuration username
@@ -41,8 +39,7 @@
         </div>
         <div class="info-callout">
             <strong>Developer support</strong>
-            <p class="muted">SkyJSON now uses the built-in GitHub Sponsors link for PatrickS86. No donation URL has to be configured.</p>
-            <a class="btn btn-secondary" href="{{ github_donation_url }}" target="_blank" rel="noopener">Open sponsor page</a>
+            <p class="muted">There is one fixed sponsor button in the configuration page that links to PatrickS86 on GitHub.</p>
         </div>
         <button type="submit" class="btn btn-primary">Finish setup</button>
     </form>

@@ -4,9 +4,10 @@
     <div class="card">
         <h1>Configuration</h1>
         <form method="post" class="form-grid">
-            <label>Application title
-                <input type="text" name="app_title" value="{{ app_title }}" required>
-            </label>
+            <div class="info-callout">
+                <strong>Application name</strong>
+                <p class="muted">The application name is fixed and stays <strong>SkyJSON</strong>.</p>
+            </div>
             <label>Aircraft data source
                 <select name="source_type">
                     <option value="file" {% if settings.source_type == 'file' %}selected{% endif %}>Local file</option>
@@ -27,9 +28,6 @@
                     <input type="number" name="refresh_interval" value="{{ settings.refresh_interval }}" min="5" max="300">
                 </label>
             </div>
-            <label>Restart command
-                <input type="text" name="restart_command" value="{{ settings.restart_command }}">
-            </label>
             <label class="checkbox-row"><input type="checkbox" name="enable_auth" {% if config_auth_enabled %}checked{% endif %}> Protect configuration panel</label>
             <div class="two-col">
                 <label>Configuration username
@@ -46,41 +44,34 @@
     <div class="stack-col">
         <div class="card">
             <h2>Developer support</h2>
-            <p class="muted">This button always links directly to the developer sponsor page on GitHub.</p>
+            <p class="muted">This is the only sponsor link shown in the app.</p>
             <a class="btn btn-secondary" href="{{ github_donation_url }}" target="_blank" rel="noopener">Sponsor PatrickS86 on GitHub</a>
         </div>
 
         <div class="card">
-            <h2>Application updates</h2>
-            <p class="muted">Use the button below to check and install updates from GitHub.</p>
+            <h2>Version management</h2>
+            <dl class="meta-list">
+                <div><dt>Application version</dt><dd>{{ app_version }}</dd></div>
+                <div><dt>Branch</dt><dd>{{ update_status.branch or '—' }}</dd></div>
+                <div><dt>Current commit</dt><dd>{{ update_status.current_commit or '—' }}</dd></div>
+                <div><dt>Remote commit</dt><dd>{{ update_status.remote_commit or '—' }}</dd></div>
+                <div><dt>Status</dt><dd>{{ update_status.message }}</dd></div>
+            </dl>
             {% if update_status.supported %}
-                <dl class="meta-list">
-                    <div><dt>Branch</dt><dd>{{ update_status.branch or '—' }}</dd></div>
-                    <div><dt>Current commit</dt><dd>{{ update_status.current_commit or '—' }}</dd></div>
-                    <div><dt>Remote commit</dt><dd>{{ update_status.remote_commit or '—' }}</dd></div>
-                    <div><dt>Status</dt><dd>{{ update_status.message }}</dd></div>
-                </dl>
-                <form method="post" action="{{ url_for('update_app') }}">
-                    <button type="submit" class="btn {% if update_status.update_available %}btn-primary{% else %}btn-secondary{% endif %}">Update from GitHub</button>
-                </form>
+            <form method="post" action="{{ url_for('update_app') }}">
+                <button type="submit" class="btn {% if update_status.update_available %}btn-primary{% else %}btn-secondary{% endif %}">Update from GitHub</button>
+            </form>
             {% else %}
-                <div class="empty-state">{{ update_status.message }}</div>
+            <div class="empty-state">{{ update_status.message }}</div>
             {% endif %}
         </div>
 
         <div class="card">
             <h2>Application restart</h2>
-            <p class="muted">Use the restart command below to restart SkyJSON. If you run the app under a supervisor with automatic restart, you can also use self-exit mode.</p>
-            <div class="form-grid compact-gap">
-                <form method="post" action="{{ url_for('restart_app') }}">
-                    <input type="hidden" name="restart_mode" value="command">
-                    <button type="submit" class="btn btn-primary">Restart app</button>
-                </form>
-                <form method="post" action="{{ url_for('restart_app') }}">
-                    <input type="hidden" name="restart_mode" value="self-exit">
-                    <button type="submit" class="btn btn-secondary">Self-exit for supervisor restart</button>
-                </form>
-            </div>
+            <p class="muted">The restart button now restarts the current Python process directly instead of running an external restart command.</p>
+            <form method="post" action="{{ url_for('restart_app') }}">
+                <button type="submit" class="btn btn-primary">Restart app</button>
+            </form>
         </div>
     </div>
 </div>

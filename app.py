@@ -1,8 +1,8 @@
 import json
 import os
-import shlex
 import sqlite3
 import subprocess
+import sys
 import threading
 import time
 from functools import wraps
@@ -16,9 +16,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / 'config.db'
 DEFAULT_SECRET = 'change-me-skyjson-secret'
-APP_VERSION = '1.4.0'
+APP_VERSION = '1.5.0'
 REQUEST_TIMEOUT = 10
-DEFAULT_RESTART_COMMAND = 'systemctl restart skyjson'
 GITHUB_SPONSOR_URL = 'https://github.com/sponsors/PatrickS86'
 
 app = Flask(__name__)
@@ -103,7 +102,7 @@ def get_github_donation_url() -> str:
 @app.context_processor
 def inject_globals():
     return {
-        'app_title': get_setting('app_title', 'SkyJSON'),
+        'app_title': 'SkyJSON',
         'app_version': APP_VERSION,
         'config_auth_enabled': config_auth_enabled(),
         'is_logged_in': is_logged_in(),
@@ -200,26 +199,14 @@ REGISTRATION_PREFIX_FLAGS = [
     ('LZ-', 'Bulgaria', 'BG', '🇧🇬'),
     ('SX-', 'Greece', 'GR', '🇬🇷'),
     ('TC-', 'Turkey', 'TR', '🇹🇷'),
-    ('T7-', 'San Marino', 'SM', '🇸🇲'),
-    ('VP-', 'Bermuda', 'BM', '🇧🇲'),
     ('N', 'United States', 'US', '🇺🇸'),
     ('C-', 'Canada', 'CA', '🇨🇦'),
-    ('XA-', 'Mexico', 'MX', '🇲🇽'),
-    ('XB-', 'Mexico', 'MX', '🇲🇽'),
-    ('XC-', 'Mexico', 'MX', '🇲🇽'),
     ('PT-', 'Brazil', 'BR', '🇧🇷'),
-    ('LV-', 'Argentina', 'AR', '🇦🇷'),
-    ('CC-', 'Chile', 'CL', '🇨🇱'),
     ('VH-', 'Australia', 'AU', '🇦🇺'),
     ('ZK-', 'New Zealand', 'NZ', '🇳🇿'),
     ('JA', 'Japan', 'JP', '🇯🇵'),
     ('B-', 'China', 'CN', '🇨🇳'),
     ('HL', 'South Korea', 'KR', '🇰🇷'),
-    ('VT-', 'India', 'IN', '🇮🇳'),
-    ('HS-', 'Thailand', 'TH', '🇹🇭'),
-    ('9V-', 'Singapore', 'SG', '🇸🇬'),
-    ('PK-', 'Indonesia', 'ID', '🇮🇩'),
-    ('RP-', 'Philippines', 'PH', '🇵🇭'),
     ('A6-', 'United Arab Emirates', 'AE', '🇦🇪'),
     ('A7-', 'Qatar', 'QA', '🇶🇦'),
     ('HZ-', 'Saudi Arabia', 'SA', '🇸🇦'),
@@ -235,7 +222,6 @@ HEX_PREFIX_FLAGS = [
     ('4B', 'Switzerland', 'CH', '🇨🇭'),
     ('4C', 'Ireland', 'IE', '🇮🇪'),
     ('49', 'Belgium', 'BE', '🇧🇪'),
-    ('4D', 'United Kingdom', 'GB', '🇬🇧'),
     ('46', 'Sweden', 'SE', '🇸🇪'),
     ('47', 'Norway', 'NO', '🇳🇴'),
     ('45', 'Denmark', 'DK', '🇩🇰'),
@@ -244,8 +230,6 @@ HEX_PREFIX_FLAGS = [
     ('34', 'Spain', 'ES', '🇪🇸'),
     ('35', 'Portugal', 'PT', '🇵🇹'),
     ('4A', 'Romania', 'RO', '🇷🇴'),
-    ('A', 'United States', 'US', '🇺🇸'),
-    ('C', 'Canada', 'CA', '🇨🇦'),
     ('7C', 'Australia', 'AU', '🇦🇺'),
 ]
 
@@ -379,23 +363,9 @@ def get_update_status() -> Dict[str, Any]:
     }
 
 
-def get_restart_command() -> str:
-    return (get_setting('restart_command', '') or os.environ.get('SKYJSON_RESTART_COMMAND') or DEFAULT_RESTART_COMMAND).strip()
-
-
-def run_restart_command() -> Dict[str, Any]:
-    command = get_restart_command()
-    if not command:
-        return {'ok': False, 'message': 'No restart command is configured.'}
-
-    result = run_cmd(shlex.split(command))
-    message = result['stderr'] or result['stdout'] or 'No output returned.'
-    return {'ok': result['ok'], 'message': message, 'command': command}
-
-
-def self_exit_for_supervisor() -> None:
+def restart_current_process() -> None:
     time.sleep(1.0)
-    os._exit(0)
+    os.execv(sys.executable, [sys.executable] + sys.argv)
 
 
 @app.route('/')
@@ -454,7 +424,6 @@ def setup():
         return redirect(url_for('index'))
 
     if request.method == 'POST':
-        app_title = (request.form.get('app_title') or 'SkyJSON').strip()
         source_type = normalize_source_type(request.form.get('source_type'))
         aircraft_path = (request.form.get('aircraft_path') or '').strip()
         aircraft_url = (request.form.get('aircraft_url') or '').strip()
@@ -463,26 +432,23 @@ def setup():
         enable_auth = request.form.get('enable_auth') == 'on'
         username = (request.form.get('username') or '').strip()
         password = request.form.get('password') or ''
-        restart_command = (request.form.get('restart_command') or DEFAULT_RESTART_COMMAND).strip()
 
         if source_type == 'file' and not aircraft_path:
             flash('Please enter a local path to aircraft.json.', 'danger')
-            return render_template('setup.html', default_restart_command=DEFAULT_RESTART_COMMAND)
+            return render_template('setup.html')
         if source_type == 'url' and not aircraft_url:
             flash('Please enter a remote URL to aircraft.json.', 'danger')
-            return render_template('setup.html', default_restart_command=DEFAULT_RESTART_COMMAND)
+            return render_template('setup.html')
 
         if enable_auth and (not username or not password):
             flash('When configuration protection is enabled, a username and password are required.', 'danger')
-            return render_template('setup.html', default_restart_command=DEFAULT_RESTART_COMMAND)
+            return render_template('setup.html')
 
-        set_setting('app_title', app_title)
         set_setting('source_type', source_type)
         set_setting('aircraft_path', aircraft_path)
         set_setting('aircraft_url', aircraft_url)
         set_setting('rows_per_page', rows_per_page)
         set_setting('refresh_interval', refresh_interval)
-        set_setting('restart_command', restart_command)
         set_setting('config_auth_enabled', '1' if enable_auth else '0')
         if enable_auth:
             set_setting('config_username', username)
@@ -491,7 +457,7 @@ def setup():
         flash('SkyJSON has been configured successfully.', 'success')
         return redirect(url_for('index'))
 
-    return render_template('setup.html', default_restart_command=DEFAULT_RESTART_COMMAND)
+    return render_template('setup.html')
 
 
 @app.route('/config/login', methods=['GET', 'POST'])
@@ -535,13 +501,11 @@ def config():
             flash('Please enter a remote URL to aircraft.json.', 'danger')
             return redirect(url_for('config'))
 
-        set_setting('app_title', (request.form.get('app_title') or 'SkyJSON').strip())
         set_setting('source_type', source_type)
         set_setting('aircraft_path', aircraft_path)
         set_setting('aircraft_url', aircraft_url)
         set_setting('rows_per_page', request.form.get('rows_per_page', '100').strip() or '100')
         set_setting('refresh_interval', request.form.get('refresh_interval', '15').strip() or '15')
-        set_setting('restart_command', (request.form.get('restart_command') or DEFAULT_RESTART_COMMAND).strip())
 
         enable_auth = request.form.get('enable_auth') == 'on'
         set_setting('config_auth_enabled', '1' if enable_auth else '0')
@@ -566,7 +530,6 @@ def config():
         'rows_per_page': get_setting('rows_per_page', '100'),
         'refresh_interval': get_setting('refresh_interval', '15'),
         'config_username': get_setting('config_username', ''),
-        'restart_command': get_restart_command(),
     }
     return render_template('config.html', update_status=update_status, settings=settings)
 
@@ -581,7 +544,7 @@ def update_app():
 
     pull = run_cmd(['git', 'pull', '--ff-only'])
     if pull['ok']:
-        flash('SkyJSON was updated successfully. Restart the application service if needed.', 'success')
+        flash('SkyJSON was updated successfully. Restart the application if needed.', 'success')
     else:
         flash(f"Update failed: {pull['stderr'] or pull['stdout']}", 'danger')
     return redirect(url_for('config'))
@@ -590,17 +553,8 @@ def update_app():
 @app.route('/config/restart', methods=['POST'])
 @config_login_required
 def restart_app():
-    restart_mode = (request.form.get('restart_mode') or 'command').strip()
-    if restart_mode == 'self-exit':
-        threading.Thread(target=self_exit_for_supervisor, daemon=True).start()
-        return render_template('restart.html')
-
-    result = run_restart_command()
-    if result['ok']:
-        flash(f"Restart command executed: {result['command']}", 'success')
-    else:
-        flash(f"Restart failed: {result['message']}", 'danger')
-    return redirect(url_for('config'))
+    threading.Thread(target=restart_current_process, daemon=True).start()
+    return render_template('restart.html')
 
 
 @app.route('/health')
