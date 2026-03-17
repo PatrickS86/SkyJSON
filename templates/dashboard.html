@@ -100,57 +100,6 @@
         </aside>
     </div>
 
-    <div class="table-section">
-        <div class="table-topbar">
-            <div>
-                <h2>Detailed table</h2>
-                <p class="muted small">Show, hide and reorder columns with the Columns button.</p>
-            </div>
-            <button type="button" class="btn btn-secondary" id="open-columns-modal">Columns</button>
-        </div>
-
-        <div class="table-wrap large-table-wrap">
-            <table id="aircraft-table" class="aircraft-data-table">
-                <thead>
-                    <tr id="aircraft-table-head">
-                        <th data-col="hex">Hex</th>
-                        <th data-col="callsign">Callsign</th>
-                        <th data-col="flag">Flag</th>
-                        <th data-col="registration">Registration</th>
-                        <th data-col="type">Type</th>
-                        <th data-col="source">Source</th>
-                        <th data-col="altitude">Altitude</th>
-                        <th data-col="speed">Speed</th>
-                        <th data-col="track">Track</th>
-                        <th data-col="lat">Lat</th>
-                        <th data-col="lon">Lon</th>
-                        <th data-col="messages">Messages</th>
-                    </tr>
-                </thead>
-                <tbody>
-                {% for a in aircraft %}
-                    <tr>
-                        <td data-col="hex">{{ a.hex }}</td>
-                        <td data-col="callsign">{{ a.flight or '—' }}</td>
-                        <td data-col="flag"><span class="flag-badge small-flag" title="{{ a.country }}">{{ a.flag }}</span></td>
-                        <td data-col="registration">{{ a.registration or '—' }}</td>
-                        <td data-col="type">{{ a.type or '—' }}</td>
-                        <td data-col="source"><span class="source-badge source-{{ a.signal_source|lower|replace('-', '')|replace(' ', '') }}">{{ a.signal_source }}</span></td>
-                        <td data-col="altitude">{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
-                        <td data-col="speed">{{ a.gs if a.gs is not none else '—' }}</td>
-                        <td data-col="track">{{ a.track if a.track is not none else '—' }}</td>
-                        <td data-col="lat">{{ a.lat if a.lat is not none else '—' }}</td>
-                        <td data-col="lon">{{ a.lon if a.lon is not none else '—' }}</td>
-                        <td data-col="messages">{{ a.messages if a.messages is not none else '—' }}</td>
-                    </tr>
-                {% else %}
-                    <tr><td colspan="12" class="muted center">No aircraft matched your query.</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <p class="muted small footer-note">Flags are estimated from the registration prefix or ICAO hex range and may not always be exact.</p>
-    </div>
     {% endif %}
 </div>
 
