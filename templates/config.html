@@ -81,7 +81,7 @@
             <h2>Version management</h2>
             <dl class="meta-list">
                 <div><dt>Running version</dt><dd>{{ update_status.running_version or running_version or '—' }}</dd></div>
-                <div><dt>Local file version</dt><dd>{{ update_status.current_version or app_version }}</dd></div>
+                <div><dt>VERSION file</dt><dd>{{ update_status.local_file_version or app_version }}</dd></div>
                 <div><dt>Git HEAD version</dt><dd>{{ update_status.head_version or '—' }}</dd></div>
                 <div><dt>Remote version</dt><dd>{{ update_status.remote_version or '—' }}</dd></div>
                 <div><dt>Update type</dt><dd>{{ update_status.update_kind or 'none' }}</dd></div>
@@ -90,11 +90,12 @@
                 <div><dt>Remote commit</dt><dd>{{ update_status.remote_commit or '—' }}</dd></div>
                 <div><dt>Ahead</dt><dd>{{ update_status.ahead_count or '0' }}</dd></div>
                 <div><dt>Behind</dt><dd>{{ update_status.behind_count or '0' }}</dd></div>
+                <div><dt>Dirty repo</dt><dd>{% if update_status.dirty %}yes{% else %}no{% endif %}</dd></div>
                 <div><dt>Status</dt><dd>{{ update_status.message }}</dd></div>
             </dl>
             {% if update_status.supported %}
             <form method="post" action="{{ url_for('update_app') }}">
-                <button type="submit" class="btn {% if update_status.update_available %}btn-primary{% else %}btn-secondary{% endif %}">Update from GitHub</button>
+                <button type="submit" class="btn {% if update_status.behind_count != '0' %}btn-primary{% else %}btn-secondary{% endif %}">Update from GitHub</button>
             </form>
             {% else %}
             <div class="empty-state">{{ update_status.message }}</div>
@@ -104,17 +105,10 @@
         <div class="card aside-card">
             <h2>Application restart</h2>
             <p class="muted">Restart the current standalone Python process after a short delay.</p>
-            <form method="post" action="{{ url_for('restart_app') }}">
+            <form method="post" action="{{ url_for('config_restart') if false else url_for('restart_app') }}">
                 <button type="submit" class="btn btn-primary">Restart app</button>
             </form>
         </div>
-    
-        <div class="card aside-card">
-            <h2>About</h2>
-            <p class="muted">© {{ 2026 }} SkyJSON — Developed by PatrickS86</p>
-            <a class="btn btn-secondary" href="https://github.com/PatrickS86/skyjson" target="_blank" rel="noopener">View on GitHub</a>
-        </div>
-
     </aside>
 </div>
 {% endblock %}

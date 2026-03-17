@@ -19,9 +19,10 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / 'config.db'
 DEFAULT_SECRET = 'change-me-skyjson-secret'
-APP_VERSION = '1.8.1'
+APP_VERSION = '1.8.3'
 REQUEST_TIMEOUT = 10
 GITHUB_SPONSOR_URL = 'https://github.com/sponsors/PatrickS86'
+VERSION_FILE = BASE_DIR / 'VERSION'
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SKYJSON_SECRET_KEY', DEFAULT_SECRET)
@@ -64,32 +65,174 @@ def set_setting(key: str, value: str) -> None:
 init_db()
 
 
+def run_cmd(args: List[str]) -> Dict[str, Any]:
+    try:
+        result = subprocess.run(
+            args,
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        return {
+            'ok': result.returncode == 0,
+            'code': result.returncode,
+            'stdout': result.stdout.strip(),
+            'stderr': result.stderr.strip(),
+        }
+    except Exception as exc:
+        return {'ok': False, 'code': -1, 'stdout': '', 'stderr': str(exc)}
+
+
+def read_version_from_text(text: str) -> Optional[str]:
+    match = re.search(r"APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]", text)
+    return match.group(1) if match else None
+
+
 def read_version_from_path(path: Path) -> Optional[str]:
     if not path.exists():
         return None
     try:
-        content = path.read_text(encoding='utf-8')
+        return read_version_from_text(path.read_text(encoding='utf-8'))
     except Exception:
         return None
-    match = re.search(r"APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]", content)
-    return match.group(1) if match else None
+
+
+def get_running_version() -> str:
+    return APP_VERSION
 
 
 def get_local_file_version() -> str:
     return read_version_from_path(BASE_DIR / 'app.py') or APP_VERSION
 
 
-def get_head_file_version() -> str:
-    show = run_cmd(['git', 'show', 'HEAD:app.py']) if (BASE_DIR / '.git').exists() else {'ok': False, 'stdout': ''}
-    if show.get('ok') and show.get('stdout'):
-        match = re.search(r"APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]", show['stdout'])
-        if match:
-            return match.group(1)
-    return get_local_file_version()
+def get_head_version() -> Optional[str]:
+    if not (BASE_DIR / '.git').exists():
+        return None
+    show = run_cmd(['git', 'show', 'HEAD:app.py'])
+    if show['ok'] and show['stdout']:
+        return read_version_from_text(show['stdout'])
+    return None
 
 
-def get_running_version() -> str:
-    return APP_VERSION
+def get_upstream_ref() -> Optional[str]:
+    if not (BASE_DIR / '.git').exists():
+        return None
+    upstream = run_cmd(['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
+    if upstream['ok'] and upstream['stdout']:
+        return upstream['stdout']
+    return None
+
+
+def get_remote_version() -> Optional[str]:
+    upstream = get_upstream_ref()
+    if not upstream:
+        return None
+    show = run_cmd(['git', 'show', f'{upstream}:VERSION'])
+    if show['ok'] and show['stdout']:
+        return show['stdout'].strip()
+    show = run_cmd(['git', 'show', f'{upstream}:app.py'])
+    if show['ok'] and show['stdout']:
+        return read_version_from_text(show['stdout'])
+    return None
+
+
+def parse_version(version: Optional[str]) -> Optional[Tuple[int, int, int]]:
+    if not version:
+        return None
+    match = re.search(r'(\d+)\.(\d+)\.(\d+)', version)
+    if not match:
+        return None
+    return tuple(int(part) for part in match.groups())
+
+
+def compare_versions(current: Optional[str], remote: Optional[str]) -> Optional[str]:
+    current_parsed = parse_version(current)
+    remote_parsed = parse_version(remote)
+    if not current_parsed or not remote_parsed or remote_parsed <= current_parsed:
+        return None
+    if remote_parsed[0] > current_parsed[0]:
+        return 'major'
+    if remote_parsed[1] > current_parsed[1]:
+        return 'minor'
+    return 'patch'
+
+
+def get_repo_status() -> Dict[str, Any]:
+    running_version = get_running_version()
+    local_file_version = get_local_file_version()
+    head_version = get_head_version()
+
+    status = {
+        'supported': (BASE_DIR / '.git').exists(),
+        'running_version': running_version,
+        'local_file_version': local_file_version,
+        'head_version': head_version or '—',
+        'remote_version': '—',
+        'update_kind': None,
+        'branch': '—',
+        'current_commit': '—',
+        'remote_commit': '—',
+        'ahead_count': '0',
+        'behind_count': '0',
+        'dirty': False,
+        'message': 'Git repository not detected.',
+    }
+
+    if not status['supported']:
+        return status
+
+    fetch = run_cmd(['git', 'fetch', '--tags', 'origin'])
+    if not fetch['ok']:
+        status['message'] = f"Git fetch failed: {fetch['stderr'] or fetch['stdout']}"
+        return status
+
+    branch = run_cmd(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
+    head_commit = run_cmd(['git', 'rev-parse', 'HEAD'])
+    upstream = get_upstream_ref()
+    dirty = run_cmd(['git', 'status', '--porcelain'])
+
+    if branch['ok'] and branch['stdout']:
+        status['branch'] = branch['stdout']
+    if head_commit['ok'] and head_commit['stdout']:
+        status['current_commit'] = head_commit['stdout'][:7]
+    status['dirty'] = bool(dirty['stdout'])
+
+    if not upstream:
+        status['message'] = 'No upstream branch is configured for this repository.'
+        return status
+
+    remote_commit = run_cmd(['git', 'rev-parse', upstream])
+    ahead_count = run_cmd(['git', 'rev-list', '--count', f'{upstream}..HEAD'])
+    behind_count = run_cmd(['git', 'rev-list', '--count', f'HEAD..{upstream}'])
+    remote_version = get_remote_version()
+
+    if remote_commit['ok'] and remote_commit['stdout']:
+        status['remote_commit'] = remote_commit['stdout'][:7]
+    if ahead_count['ok'] and ahead_count['stdout']:
+        status['ahead_count'] = ahead_count['stdout']
+    if behind_count['ok'] and behind_count['stdout']:
+        status['behind_count'] = behind_count['stdout']
+    if remote_version:
+        status['remote_version'] = remote_version
+
+    status['update_kind'] = compare_versions(local_file_version, remote_version)
+
+    if status['behind_count'] != '0' and status['update_kind']:
+        status['message'] = f"A {status['update_kind']} update is available on GitHub."
+    elif status['behind_count'] != '0':
+        status['message'] = 'A Git update is available on GitHub.'
+    elif status['running_version'] != status['local_file_version']:
+        status['message'] = 'The running app version does not match the app.py file on disk. Restart is required.'
+    elif status['head_version'] != '—' and status['local_file_version'] != status['head_version']:
+        status['message'] = 'The app.py file on disk does not match Git HEAD.'
+    elif status['dirty']:
+        status['message'] = 'Repository has local uncommitted changes.'
+    else:
+        status['message'] = 'SkyJSON is up to date.'
+
+    return status
 
 
 def is_installed() -> bool:
@@ -206,19 +349,10 @@ REGISTRATION_PREFIX_FLAGS = [
     ('HA-', 'Hungary', 'HU', '🇭🇺'), ('S5-', 'Slovenia', 'SI', '🇸🇮'), ('9A-', 'Croatia', 'HR', '🇭🇷'),
     ('YU-', 'Serbia', 'RS', '🇷🇸'), ('LZ-', 'Bulgaria', 'BG', '🇧🇬'), ('SX-', 'Greece', 'GR', '🇬🇷'),
     ('TC-', 'Turkey', 'TR', '🇹🇷'), ('N', 'United States', 'US', '🇺🇸'), ('C-', 'Canada', 'CA', '🇨🇦'),
-    ('PT-', 'Brazil', 'BR', '🇧🇷'), ('VH-', 'Australia', 'AU', '🇦🇺'), ('ZK-', 'New Zealand', 'NZ', '🇳🇿'),
-    ('JA', 'Japan', 'JP', '🇯🇵'), ('B-', 'China', 'CN', '🇨🇳'), ('HL', 'South Korea', 'KR', '🇰🇷'),
-    ('A6-', 'United Arab Emirates', 'AE', '🇦🇪'), ('A7-', 'Qatar', 'QA', '🇶🇦'), ('HZ-', 'Saudi Arabia', 'SA', '🇸🇦'),
-    ('4X-', 'Israel', 'IL', '🇮🇱'), ('ZS-', 'South Africa', 'ZA', '🇿🇦'),
 ]
 
 HEX_PREFIX_FLAGS = [
-    ('48', 'Netherlands', 'NL', '🇳🇱'), ('44', 'United Kingdom', 'GB', '🇬🇧'), ('3C', 'Germany', 'DE', '🇩🇪'),
-    ('39', 'Italy', 'IT', '🇮🇹'), ('4B', 'Switzerland', 'CH', '🇨🇭'), ('4C', 'Ireland', 'IE', '🇮🇪'),
-    ('49', 'Belgium', 'BE', '🇧🇪'), ('46', 'Sweden', 'SE', '🇸🇪'), ('47', 'Norway', 'NO', '🇳🇴'),
-    ('45', 'Denmark', 'DK', '🇩🇰'), ('43', 'Austria', 'AT', '🇦🇹'), ('38', 'France', 'FR', '🇫🇷'),
-    ('34', 'Spain', 'ES', '🇪🇸'), ('35', 'Portugal', 'PT', '🇵🇹'), ('4A', 'Romania', 'RO', '🇷🇴'),
-    ('7C', 'Australia', 'AU', '🇦🇺'),
+    ('48', 'Netherlands', 'NL', '🇳🇱'), ('44', 'United Kingdom', 'GB', '🇬🇧'),
 ]
 
 
@@ -253,7 +387,6 @@ def load_aircraft() -> Dict[str, Any]:
     payload = read_payload_from_url(source_settings['aircraft_url']) if source_type == 'url' else read_payload_from_file(source_settings['aircraft_path'])
 
     if payload.get('error'):
-        payload['source_label'] = f"Remote URL: {source_settings['aircraft_url']}" if source_type == 'url' else f"Local file: {source_settings['aircraft_path']}"
         return payload
 
     items = payload.get('aircraft', [])
@@ -267,26 +400,19 @@ def load_aircraft() -> Dict[str, Any]:
                 'registration': item.get('r', ''),
                 'type': item.get('t', ''),
                 'signal_source': detect_signal_source(item),
-                'category': item.get('category', ''),
-                'squawk': item.get('squawk', ''),
                 'alt_baro': safe_int(item.get('alt_baro')),
                 'gs': safe_float(item.get('gs')),
                 'track': safe_float(item.get('track')),
                 'lat': safe_float(item.get('lat')),
                 'lon': safe_float(item.get('lon')),
-                'seen': safe_float(item.get('seen')),
-                'seen_pos': safe_float(item.get('seen_pos')),
                 'messages': safe_int(item.get('messages')),
-                'rssi': safe_float(item.get('rssi')),
                 'country': country_info['country'],
-                'country_code': country_info['country_code'],
                 'flag': country_info['flag'],
             }
         )
 
     aircraft.sort(key=lambda x: ((x['flight'] or x['registration'] or x['hex']).lower(), x['hex']))
-    source_label = f"Remote URL: {source_settings['aircraft_url']}" if source_type == 'url' else f"Local file: {source_settings['aircraft_path']}"
-    return {'error': None, 'aircraft': aircraft, 'now': payload.get('now'), 'source_label': source_label}
+    return {'error': None, 'aircraft': aircraft, 'now': payload.get('now')}
 
 
 def summarize_aircraft(aircraft: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -299,152 +425,6 @@ def summarize_aircraft(aircraft: List[Dict[str, Any]]) -> Dict[str, Any]:
         'avg_altitude': round(sum(altitudes) / len(altitudes)) if altitudes else None,
         'avg_speed': round(sum(speeds) / len(speeds), 1) if speeds else None,
     }
-
-
-def run_cmd(args: List[str]) -> Dict[str, Any]:
-    try:
-        result = subprocess.run(args, cwd=BASE_DIR, capture_output=True, text=True, timeout=60, check=False)
-        return {'ok': result.returncode == 0, 'code': result.returncode, 'stdout': result.stdout.strip(), 'stderr': result.stderr.strip()}
-    except Exception as exc:
-        return {'ok': False, 'code': -1, 'stdout': '', 'stderr': str(exc)}
-
-
-def parse_version(version: Optional[str]) -> Optional[Tuple[int, int, int]]:
-    if not version:
-        return None
-    match = re.search(r'(\d+)\.(\d+)\.(\d+)', version)
-    if not match:
-        return None
-    return tuple(int(part) for part in match.groups())
-
-
-def compare_versions(current: Optional[str], remote: Optional[str]) -> Optional[str]:
-    current_parsed = parse_version(current)
-    remote_parsed = parse_version(remote)
-    if not current_parsed or not remote_parsed or remote_parsed <= current_parsed:
-        return None
-    if remote_parsed[0] > current_parsed[0]:
-        return 'major'
-    if remote_parsed[1] > current_parsed[1]:
-        return 'minor'
-    return 'patch'
-
-
-def read_remote_app_version(remote_ref: str) -> Optional[str]:
-    show = run_cmd(['git', 'show', f'{remote_ref}:app.py'])
-    if not show['ok'] or not show['stdout']:
-        return None
-    match = re.search(r"APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]", show['stdout'])
-    return match.group(1) if match else None
-
-
-def get_update_status() -> Dict[str, Any]:
-    current_version = get_local_file_version()
-    running_version = get_running_version()
-    head_version = get_head_file_version()
-
-    if not (BASE_DIR / '.git').exists():
-        return {
-            'supported': False,
-            'message': 'Updates require SkyJSON to be installed from a Git repository.',
-            'current_version': current_version,
-            'running_version': running_version,
-            'head_version': head_version,
-            'remote_version': None,
-            'update_kind': None,
-        }
-
-    fetch = run_cmd(['git', 'fetch', '--tags', 'origin'])
-    if not fetch['ok']:
-        return {
-            'supported': True,
-            'update_available': None,
-            'message': f"Git fetch failed: {fetch['stderr'] or fetch['stdout']}",
-            'current_version': current_version,
-            'running_version': running_version,
-            'head_version': head_version,
-            'remote_version': None,
-            'update_kind': None,
-        }
-
-    branch = run_cmd(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
-    current_commit = run_cmd(['git', 'rev-parse', 'HEAD'])
-    upstream = run_cmd(['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
-
-    if not (branch['ok'] and current_commit['ok'] and upstream['ok']):
-        return {
-            'supported': True,
-            'update_available': None,
-            'message': 'Unable to determine Git update status for this installation.',
-            'current_version': current_version,
-            'running_version': running_version,
-            'head_version': head_version,
-            'remote_version': None,
-            'update_kind': None,
-        }
-
-    remote_ref = upstream['stdout']
-    remote_commit = run_cmd(['git', 'rev-parse', remote_ref])
-    if not remote_commit['ok']:
-        return {
-            'supported': True,
-            'update_available': None,
-            'message': 'Unable to determine remote commit for the tracked branch.',
-            'current_version': current_version,
-            'running_version': running_version,
-            'head_version': head_version,
-            'remote_version': None,
-            'update_kind': None,
-        }
-
-    remote_version = read_remote_app_version(remote_ref) or current_version
-    update_available = current_commit['stdout'] != remote_commit['stdout']
-    update_kind = compare_versions(current_version, remote_version)
-
-    ahead_count = run_cmd(['git', 'rev-list', '--count', f'{remote_ref}..HEAD'])
-    behind_count = run_cmd(['git', 'rev-list', '--count', f'HEAD..{remote_ref}'])
-    ahead = ahead_count['stdout'] if ahead_count.get('ok') else '0'
-    behind = behind_count['stdout'] if behind_count.get('ok') else '0'
-
-    if update_available and update_kind:
-        message = f'A {update_kind} update is available on GitHub.'
-    elif update_available:
-        message = 'A new Git update is available on GitHub.'
-    else:
-        message = 'SkyJSON is up to date.'
-
-    return {
-        'supported': True,
-        'update_available': update_available,
-        'branch': branch['stdout'],
-        'current_commit': current_commit['stdout'][:7],
-        'remote_commit': remote_commit['stdout'][:7],
-        'current_version': current_version,
-        'running_version': running_version,
-        'head_version': head_version,
-        'remote_version': remote_version,
-        'update_kind': update_kind,
-        'ahead_count': ahead,
-        'behind_count': behind,
-        'message': message,
-    }
-
-
-def delayed_restart_process() -> None:
-    python_executable = sys.executable
-    argv = [python_executable] + sys.argv
-    quoted_cmd = ' '.join(shlex.quote(part) for part in argv)
-    restart_script = f"sleep 2; cd {shlex.quote(str(BASE_DIR))} && exec {quoted_cmd}"
-    subprocess.Popen(
-        ['/bin/sh', '-c', restart_script],
-        cwd=BASE_DIR,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-        env=os.environ.copy(),
-    )
-    time.sleep(0.5)
-    os._exit(0)
 
 
 @app.route('/')
@@ -494,7 +474,6 @@ def index():
         error=data['error'],
         query=query,
         refresh_interval=1,
-        source_path=data.get('source_label', 'not configured'),
     )
 
 
@@ -586,7 +565,7 @@ def config_login():
 
     if request.method == 'POST':
         username = (request.form.get('username') or '').strip()
-        password = request.form.get('password') or ''
+        password = (request.form.get('password') or '')
         stored_username = get_setting('config_username', '')
         stored_hash = get_setting('config_password_hash', '')
         if username == stored_username and stored_hash and check_password_hash(stored_hash, password):
@@ -637,7 +616,7 @@ def config():
         flash('Configuration saved.', 'success')
         return redirect(url_for('config'))
 
-    update_status = get_update_status()
+    update_status = get_repo_status()
     source_settings = get_source_settings()
     settings = {
         'source_type': source_settings['source_type'],
@@ -651,7 +630,7 @@ def config():
 @app.route('/config/update', methods=['POST'])
 @config_login_required
 def update_app():
-    status = get_update_status()
+    status = get_repo_status()
     if not status.get('supported'):
         flash(status.get('message', 'Updates are not supported for this installation.'), 'danger')
         return redirect(url_for('config'))
@@ -666,6 +645,22 @@ def update_app():
 @app.route('/config/restart', methods=['POST'])
 @config_login_required
 def restart_app():
+    def delayed_restart_process() -> None:
+        python_executable = sys.executable
+        argv = [python_executable] + sys.argv
+        quoted_cmd = ' '.join(shlex.quote(part) for part in argv)
+        restart_script = f"sleep 2; cd {shlex.quote(str(BASE_DIR))} && exec {quoted_cmd}"
+        subprocess.Popen(
+            ['/bin/sh', '-c', restart_script],
+            cwd=BASE_DIR,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            env=os.environ.copy(),
+        )
+        time.sleep(0.5)
+        os._exit(0)
+
     threading.Thread(target=delayed_restart_process, daemon=True).start()
     return render_template('restart.html')
 
@@ -677,7 +672,8 @@ def health():
         'app': 'SkyJSON',
         'running_version': get_running_version(),
         'file_version': get_local_file_version(),
-        'head_version': get_head_file_version(),
+        'head_version': get_head_version(),
+        'remote_version': get_remote_version(),
     }
 
 
