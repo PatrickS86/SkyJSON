@@ -153,7 +153,7 @@ function focusAircraftOnMap(hex) {
         if (layer.aircraftHex === hex) foundMarker = layer;
     });
     if (foundMarker) {
-        map.setView([entry.lat, entry.lon], Math.max(map.getZoom(), 10), { animate: true });
+        map.setView([entry.lat, entry.lon], Math.max(map.getZoom(), 12), { animate: true });
         foundMarker.openPopup();
     }
 }
@@ -198,7 +198,7 @@ function renderMap(aircraftList, refit=false) {
         const label = aircraft.flight || aircraft.hex || 'Aircraft';
         const icon = L.divIcon({
             className: 'plane-marker-wrapper',
-            html: `<div class="plane-marker compact-plane" style="color:${color}; transform: rotate(${heading}deg)">✈</div>`,
+            html: `<div class="plane-marker compact-plane" style="color:${color}; transform: rotate(${heading - 90}deg)">✈</div>`,
             iconSize: [22, 22],
             iconAnchor: [11, 11],
             popupAnchor: [0, -14]

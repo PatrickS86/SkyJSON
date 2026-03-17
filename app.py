@@ -100,11 +100,27 @@ def get_github_donation_url() -> str:
     return GITHUB_SPONSOR_URL
 
 
+def read_version_from_file(ref: str) -> Optional[str]:
+    path = BASE_DIR / ref
+    if not path.exists():
+        return None
+    try:
+        contents = path.read_text(encoding='utf-8')
+    except Exception:
+        return None
+    match = re.search(r"APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]", contents)
+    return match.group(1) if match else None
+
+
+def get_local_file_version() -> str:
+    return read_version_from_file('app.py') or APP_VERSION
+
+
 @app.context_processor
 def inject_globals():
     return {
         'app_title': 'SkyJSON',
-        'app_version': APP_VERSION,
+        'app_version': get_local_file_version(),
         'config_auth_enabled': config_auth_enabled(),
         'is_logged_in': is_logged_in(),
         'github_donation_url': get_github_donation_url(),
@@ -316,7 +332,7 @@ def get_update_status() -> Dict[str, Any]:
         return {
             'supported': False,
             'message': 'Updates require SkyJSON to be installed from a Git repository.',
-            'current_version': APP_VERSION,
+            'current_version': get_local_file_version(),
             'remote_version': None,
             'update_kind': None,
         }
@@ -327,7 +343,7 @@ def get_update_status() -> Dict[str, Any]:
             'supported': True,
             'update_available': None,
             'message': f"Git fetch failed: {fetch['stderr'] or fetch['stdout']}",
-            'current_version': APP_VERSION,
+            'current_version': get_local_file_version(),
             'remote_version': None,
             'update_kind': None,
         }
@@ -341,7 +357,7 @@ def get_update_status() -> Dict[str, Any]:
             'supported': True,
             'update_available': None,
             'message': 'Unable to determine Git update status for this installation.',
-            'current_version': APP_VERSION,
+            'current_version': get_local_file_version(),
             'remote_version': None,
             'update_kind': None,
         }
@@ -353,14 +369,15 @@ def get_update_status() -> Dict[str, Any]:
             'supported': True,
             'update_available': None,
             'message': 'Unable to determine remote commit for the tracked branch.',
-            'current_version': APP_VERSION,
+            'current_version': get_local_file_version(),
             'remote_version': None,
             'update_kind': None,
         }
 
-    remote_version = read_remote_app_version(branch['stdout'], remote_ref) or APP_VERSION
+    local_version = get_local_file_version()
+    remote_version = read_remote_app_version(branch['stdout'], remote_ref) or local_version
     update_available = current['stdout'] != remote['stdout']
-    update_kind = compare_versions(APP_VERSION, remote_version)
+    update_kind = compare_versions(local_version, remote_version)
 
     if update_available and update_kind:
         message = f'A {update_kind} update is available on GitHub.'
@@ -375,7 +392,7 @@ def get_update_status() -> Dict[str, Any]:
         'branch': branch['stdout'],
         'current_commit': current['stdout'][:7],
         'remote_commit': remote['stdout'][:7],
-        'current_version': APP_VERSION,
+        'current_version': get_local_file_version(),
         'remote_version': remote_version,
         'update_kind': update_kind,
         'message': message,

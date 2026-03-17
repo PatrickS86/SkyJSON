@@ -556,3 +556,14 @@ input:focus, select:focus { outline: none; border-color: rgba(132,221,255,.38); 
     width: 100%;
   }
 }
+
+
+.sidebar-aircraft-row {
+  cursor: pointer;
+}
+.sidebar-aircraft-row:hover td {
+  background: rgba(97, 174, 252, .10) !important;
+}
+.config-hero {
+  align-items: center;
+}
