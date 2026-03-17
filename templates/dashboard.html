@@ -57,12 +57,12 @@
             <div class="sidebar-header">
                 <div>
                     <h2>Received aircraft</h2>
-                    <p class="muted small">{{ aircraft|length }} of {{ total_results }} shown</p>
+                    <p class="muted small">All received aircraft are shown</p>
                 </div>
             </div>
 
             <div class="sidebar-table-wrap">
-                <table class="sidebar-table">
+                <table class="sidebar-table sidebar-table-fit">
                     <thead>
                         <tr>
                             <th>Flight</th>
@@ -77,9 +77,9 @@
                     {% for a in aircraft %}
                         <tr>
                             <td>
-                                <div class="sidebar-flight-cell">
+                                <div class="sidebar-flight-cell fit-flight-cell">
                                     <span class="flag-badge small-flag" title="{{ a.country }}">{{ a.flag }}</span>
-                                    <div>
+                                    <div class="fit-flight-text">
                                         <div class="sidebar-flight">{{ a.flight or a.hex }}</div>
                                         <div class="sidebar-hex">{{ a.hex }}</div>
                                     </div>
@@ -205,7 +205,7 @@ for (const aircraft of aircraftData) {
 if (bounds.length === 1) {
     map.setView(bounds[0], 9);
 } else if (bounds.length > 1) {
-    map.fitBounds(bounds, { padding: [24, 24] });
+    map.fitBounds(bounds, { padding: [18, 18] });
 }
 
 for (const id of ['toggle-registration', 'toggle-callsign', 'toggle-type', 'toggle-altitude']) {

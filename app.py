@@ -19,7 +19,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / 'config.db'
 DEFAULT_SECRET = 'change-me-skyjson-secret'
-APP_VERSION = '1.7.1'
+APP_VERSION = '1.7.2'
 REQUEST_TIMEOUT = 10
 GITHUB_SPONSOR_URL = 'https://github.com/sponsors/PatrickS86'
 
@@ -208,7 +208,7 @@ def get_country_info(hex_code: str, registration: str) -> Dict[str, str]:
 
 
 def detect_signal_source(item: Dict[str, Any]) -> str:
-    source_raw = (item.get('type') or item.get('dbFlags') or '').strip().lower()
+    source_raw = str(item.get('type') or item.get('dbFlags') or '').strip().lower()
     if 'mlat' in source_raw:
         return 'MLAT'
     if 'mode_s' in source_raw or 'mode-s' in source_raw or source_raw == 'modes':
@@ -303,8 +303,8 @@ def compare_versions(current: Optional[str], remote: Optional[str]) -> Optional[
     return 'patch'
 
 
-def read_remote_app_version(branch_name: str) -> Optional[str]:
-    show = run_cmd(['git', 'show', f'origin/{branch_name}:app.py'])
+def read_remote_app_version(branch_name: str, remote_ref: str) -> Optional[str]:
+    show = run_cmd(['git', 'show', f'{remote_ref}:app.py'])
     if not show['ok'] or not show['stdout']:
         return None
     match = re.search(r"APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]", show['stdout'])
@@ -321,7 +321,7 @@ def get_update_status() -> Dict[str, Any]:
             'update_kind': None,
         }
 
-    fetch = run_cmd(['git', 'fetch', 'origin'])
+    fetch = run_cmd(['git', 'fetch', '--tags', 'origin'])
     if not fetch['ok']:
         return {
             'supported': True,
@@ -334,9 +334,9 @@ def get_update_status() -> Dict[str, Any]:
 
     branch = run_cmd(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
     current = run_cmd(['git', 'rev-parse', 'HEAD'])
-    remote = run_cmd(['git', 'rev-parse', '@{u}'])
+    upstream = run_cmd(['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
 
-    if not (branch['ok'] and current['ok'] and remote['ok']):
+    if not (branch['ok'] and current['ok'] and upstream['ok']):
         return {
             'supported': True,
             'update_available': None,
@@ -346,8 +346,19 @@ def get_update_status() -> Dict[str, Any]:
             'update_kind': None,
         }
 
-    branch_name = branch['stdout']
-    remote_version = read_remote_app_version(branch_name) or APP_VERSION
+    remote_ref = upstream['stdout']
+    remote = run_cmd(['git', 'rev-parse', remote_ref])
+    if not remote['ok']:
+        return {
+            'supported': True,
+            'update_available': None,
+            'message': 'Unable to determine remote commit for the tracked branch.',
+            'current_version': APP_VERSION,
+            'remote_version': None,
+            'update_kind': None,
+        }
+
+    remote_version = read_remote_app_version(branch['stdout'], remote_ref) or APP_VERSION
     update_available = current['stdout'] != remote['stdout']
     update_kind = compare_versions(APP_VERSION, remote_version)
 
@@ -361,7 +372,7 @@ def get_update_status() -> Dict[str, Any]:
     return {
         'supported': True,
         'update_available': update_available,
-        'branch': branch_name,
+        'branch': branch['stdout'],
         'current_commit': current['stdout'][:7],
         'remote_commit': remote['stdout'][:7],
         'current_version': APP_VERSION,
@@ -395,6 +406,7 @@ def index():
     aircraft = data['aircraft']
     stats = summarize_aircraft(aircraft)
     query = (request.args.get('q') or '').strip().lower()
+
     if query:
         aircraft = [
             a for a in aircraft
