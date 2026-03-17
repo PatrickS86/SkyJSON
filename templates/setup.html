@@ -27,22 +27,24 @@
                 <input type="number" name="refresh_interval" value="15" min="5" max="300">
             </label>
         </div>
-        <label>GitHub donation page URL
-            <input type="url" name="github_donation_url" placeholder="https://github.com/sponsors/your-github-username">
-        </label>
         <label>Restart command
             <input type="text" name="restart_command" value="{{ default_restart_command }}">
         </label>
-        <label class="checkbox-row"><input type="checkbox" name="enable_auth"> Protect the configuration panel with a username and password</label>
+        <label class="checkbox-row"><input type="checkbox" name="enable_auth"> Protect configuration panel</label>
         <div class="two-col">
             <label>Configuration username
-                <input type="text" name="username" placeholder="admin">
+                <input type="text" name="username" placeholder="Only required when protection is enabled">
             </label>
             <label>Configuration password
-                <input type="password" name="password" placeholder="••••••••">
+                <input type="password" name="password" placeholder="Only required when protection is enabled">
             </label>
         </div>
-        <button type="submit" class="btn btn-primary">Finish installation</button>
+        <div class="info-callout">
+            <strong>Developer support</strong>
+            <p class="muted">SkyJSON now uses the built-in GitHub Sponsors link for PatrickS86. No donation URL has to be configured.</p>
+            <a class="btn btn-secondary" href="{{ github_donation_url }}" target="_blank" rel="noopener">Open sponsor page</a>
+        </div>
+        <button type="submit" class="btn btn-primary">Finish setup</button>
     </form>
 </div>
 {% endblock %}

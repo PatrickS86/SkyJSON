@@ -19,11 +19,9 @@
             <p class="muted">Source: {{ source_path or 'not configured' }}</p>
         </div>
         <div class="toolbar-actions">
-            {% if github_donation_url %}
-            <a class="btn btn-secondary" href="{{ github_donation_url }}" target="_blank" rel="noopener">Support the developer on GitHub</a>
-            {% endif %}
+            <a class="btn btn-secondary" href="{{ github_donation_url }}" target="_blank" rel="noopener">Sponsor the developer</a>
             <form method="get" class="search-form">
-                <input type="text" name="q" placeholder="Search hex, callsign, registration or type" value="{{ request.args.get('q', '') }}">
+                <input type="text" name="q" placeholder="Search hex, callsign, registration, type or country" value="{{ request.args.get('q', '') }}">
                 <button type="submit" class="btn btn-primary">Search</button>
             </form>
         </div>
@@ -36,9 +34,15 @@
         <div class="map-shell">
             <div class="map-header">
                 <h3>Aircraft map</h3>
-                <p class="muted small">Interactive map with live aircraft positions.</p>
+                <p class="muted small">Marker colors change with altitude.</p>
             </div>
             <div id="aircraft-map"></div>
+            <div class="legend-row">
+                <span><i class="legend-dot alt-low"></i> low</span>
+                <span><i class="legend-dot alt-mid"></i> medium</span>
+                <span><i class="legend-dot alt-high"></i> high</span>
+                <span><i class="legend-dot alt-very-high"></i> very high</span>
+            </div>
         </div>
         {% else %}
         <div class="empty-state">No aircraft positions available for the map.</div>
@@ -50,6 +54,7 @@
                     <tr>
                         <th>Hex</th>
                         <th>Callsign</th>
+                        <th>Country</th>
                         <th>Registration</th>
                         <th>Type</th>
                         <th>Altitude</th>
@@ -65,6 +70,7 @@
                     <tr>
                         <td>{{ a.hex }}</td>
                         <td>{{ a.flight or '—' }}</td>
+                        <td><span class="flag-badge" title="{{ a.country }}">{{ a.flag }}</span> {{ a.country }}</td>
                         <td>{{ a.registration or '—' }}</td>
                         <td>{{ a.type or '—' }}</td>
                         <td>{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
@@ -75,18 +81,29 @@
                         <td>{{ a.messages if a.messages is not none else '—' }}</td>
                     </tr>
                 {% else %}
-                    <tr><td colspan="10" class="muted center">No aircraft matched your query.</td></tr>
+                    <tr><td colspan="11" class="muted center">No aircraft matched your query.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
         <p class="muted small">Showing {{ aircraft|length }} of {{ total_results }} results. Auto-refresh every {{ refresh_interval }} seconds.</p>
+        <p class="muted small">Country flags are estimated from the registration prefix or ICAO hex range and may not always be exact.</p>
     {% endif %}
 </div>
 
 {% if map_aircraft %}
 <script>
 const aircraftData = {{ map_aircraft | tojson }};
+
+function altitudeColor(altitude) {
+    if (altitude === null || altitude === undefined || Number.isNaN(Number(altitude))) return '#94a3b8';
+    const alt = Number(altitude);
+    if (alt < 5000) return '#22c55e';
+    if (alt < 15000) return '#f59e0b';
+    if (alt < 30000) return '#ef4444';
+    return '#8b5cf6';
+}
+
 const map = L.map('aircraft-map', { zoomControl: true, preferCanvas: true });
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -96,12 +113,13 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 const bounds = [];
 for (const aircraft of aircraftData) {
     const heading = Number.isFinite(aircraft.track) ? aircraft.track : 0;
+    const color = altitudeColor(aircraft.alt_baro);
     const label = aircraft.flight || aircraft.hex || 'Aircraft';
     const icon = L.divIcon({
         className: 'plane-marker-wrapper',
-        html: `<div class="plane-marker" style="transform: rotate(${heading}deg)">✈</div>`,
-        iconSize: [22, 22],
-        iconAnchor: [11, 11],
+        html: `<div class="plane-marker" style="color:${color}; transform: rotate(${heading}deg)">✈</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
         popupAnchor: [0, -12]
     });
 
@@ -109,6 +127,7 @@ for (const aircraft of aircraftData) {
     marker.bindPopup(`
         <div class="popup-card">
             <strong>${label}</strong><br>
+            ${aircraft.flag || '🏳️'} ${aircraft.country || 'Unknown'}<br>
             HEX: ${aircraft.hex || '—'}<br>
             Registration: ${aircraft.registration || '—'}<br>
             Type: ${aircraft.type || '—'}<br>

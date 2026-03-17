@@ -75,3 +75,14 @@ select { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid
 .compact-gap { gap: 10px; }
 .toolbar-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 code { background: rgba(255,255,255,.06); padding: 2px 6px; border-radius: 6px; }
+
+
+.info-callout { padding: 16px; border-radius: 16px; border: 1px solid var(--border); background: rgba(255,255,255,.03); }
+.flag-badge { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 999px; background: rgba(255,255,255,.06); margin-right: 8px; font-size: 16px; }
+.legend-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; color: var(--muted); font-size: 14px; }
+.legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 999px; margin-right: 6px; }
+.legend-dot.alt-low { background: #22c55e; }
+.legend-dot.alt-mid { background: #f59e0b; }
+.legend-dot.alt-high { background: #ef4444; }
+.legend-dot.alt-very-high { background: #8b5cf6; }
+.plane-marker { font-size: 19px; text-shadow: 0 0 10px rgba(0,0,0,.45); }

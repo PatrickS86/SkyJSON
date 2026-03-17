@@ -16,17 +16,15 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / 'config.db'
 DEFAULT_SECRET = 'change-me-skyjson-secret'
-APP_VERSION = '1.3.0'
+APP_VERSION = '1.4.0'
 REQUEST_TIMEOUT = 10
 DEFAULT_RESTART_COMMAND = 'systemctl restart skyjson'
+GITHUB_SPONSOR_URL = 'https://github.com/sponsors/PatrickS86'
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SKYJSON_SECRET_KEY', DEFAULT_SECRET)
 
 
-# -----------------------------
-# Database helpers
-# -----------------------------
 def get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -64,9 +62,6 @@ def set_setting(key: str, value: str) -> None:
 init_db()
 
 
-# -----------------------------
-# App config
-# -----------------------------
 def is_installed() -> bool:
     return get_setting('installed', '0') == '1'
 
@@ -102,10 +97,7 @@ def config_login_required(fn):
 
 
 def get_github_donation_url() -> str:
-    value = (get_setting('github_donation_url', '') or '').strip()
-    if value:
-        return value
-    return (get_setting('github_sponsors_url', '') or '').strip()
+    return GITHUB_SPONSOR_URL
 
 
 @app.context_processor
@@ -119,9 +111,6 @@ def inject_globals():
     }
 
 
-# -----------------------------
-# Aircraft JSON parsing
-# -----------------------------
 def safe_float(value: Any) -> Optional[float]:
     try:
         return float(value)
@@ -182,6 +171,100 @@ def read_payload_from_url(url: str) -> Dict[str, Any]:
         return {'error': f'Remote source did not return valid JSON: {exc}', 'aircraft': [], 'now': None}
 
 
+REGISTRATION_PREFIX_FLAGS = [
+    ('PH-', 'Netherlands', 'NL', '🇳🇱'),
+    ('OO-', 'Belgium', 'BE', '🇧🇪'),
+    ('D-', 'Germany', 'DE', '🇩🇪'),
+    ('F-', 'France', 'FR', '🇫🇷'),
+    ('G-', 'United Kingdom', 'GB', '🇬🇧'),
+    ('EI-', 'Ireland', 'IE', '🇮🇪'),
+    ('LX-', 'Luxembourg', 'LU', '🇱🇺'),
+    ('HB-', 'Switzerland', 'CH', '🇨🇭'),
+    ('OE-', 'Austria', 'AT', '🇦🇹'),
+    ('I-', 'Italy', 'IT', '🇮🇹'),
+    ('EC-', 'Spain', 'ES', '🇪🇸'),
+    ('CS-', 'Portugal', 'PT', '🇵🇹'),
+    ('SE-', 'Sweden', 'SE', '🇸🇪'),
+    ('LN-', 'Norway', 'NO', '🇳🇴'),
+    ('OY-', 'Denmark', 'DK', '🇩🇰'),
+    ('OH-', 'Finland', 'FI', '🇫🇮'),
+    ('TF-', 'Iceland', 'IS', '🇮🇸'),
+    ('SP-', 'Poland', 'PL', '🇵🇱'),
+    ('OK-', 'Czech Republic', 'CZ', '🇨🇿'),
+    ('OM-', 'Slovakia', 'SK', '🇸🇰'),
+    ('YR-', 'Romania', 'RO', '🇷🇴'),
+    ('HA-', 'Hungary', 'HU', '🇭🇺'),
+    ('S5-', 'Slovenia', 'SI', '🇸🇮'),
+    ('9A-', 'Croatia', 'HR', '🇭🇷'),
+    ('YU-', 'Serbia', 'RS', '🇷🇸'),
+    ('LZ-', 'Bulgaria', 'BG', '🇧🇬'),
+    ('SX-', 'Greece', 'GR', '🇬🇷'),
+    ('TC-', 'Turkey', 'TR', '🇹🇷'),
+    ('T7-', 'San Marino', 'SM', '🇸🇲'),
+    ('VP-', 'Bermuda', 'BM', '🇧🇲'),
+    ('N', 'United States', 'US', '🇺🇸'),
+    ('C-', 'Canada', 'CA', '🇨🇦'),
+    ('XA-', 'Mexico', 'MX', '🇲🇽'),
+    ('XB-', 'Mexico', 'MX', '🇲🇽'),
+    ('XC-', 'Mexico', 'MX', '🇲🇽'),
+    ('PT-', 'Brazil', 'BR', '🇧🇷'),
+    ('LV-', 'Argentina', 'AR', '🇦🇷'),
+    ('CC-', 'Chile', 'CL', '🇨🇱'),
+    ('VH-', 'Australia', 'AU', '🇦🇺'),
+    ('ZK-', 'New Zealand', 'NZ', '🇳🇿'),
+    ('JA', 'Japan', 'JP', '🇯🇵'),
+    ('B-', 'China', 'CN', '🇨🇳'),
+    ('HL', 'South Korea', 'KR', '🇰🇷'),
+    ('VT-', 'India', 'IN', '🇮🇳'),
+    ('HS-', 'Thailand', 'TH', '🇹🇭'),
+    ('9V-', 'Singapore', 'SG', '🇸🇬'),
+    ('PK-', 'Indonesia', 'ID', '🇮🇩'),
+    ('RP-', 'Philippines', 'PH', '🇵🇭'),
+    ('A6-', 'United Arab Emirates', 'AE', '🇦🇪'),
+    ('A7-', 'Qatar', 'QA', '🇶🇦'),
+    ('HZ-', 'Saudi Arabia', 'SA', '🇸🇦'),
+    ('4X-', 'Israel', 'IL', '🇮🇱'),
+    ('ZS-', 'South Africa', 'ZA', '🇿🇦'),
+]
+
+HEX_PREFIX_FLAGS = [
+    ('48', 'Netherlands', 'NL', '🇳🇱'),
+    ('44', 'United Kingdom', 'GB', '🇬🇧'),
+    ('3C', 'Germany', 'DE', '🇩🇪'),
+    ('39', 'Italy', 'IT', '🇮🇹'),
+    ('4B', 'Switzerland', 'CH', '🇨🇭'),
+    ('4C', 'Ireland', 'IE', '🇮🇪'),
+    ('49', 'Belgium', 'BE', '🇧🇪'),
+    ('4D', 'United Kingdom', 'GB', '🇬🇧'),
+    ('46', 'Sweden', 'SE', '🇸🇪'),
+    ('47', 'Norway', 'NO', '🇳🇴'),
+    ('45', 'Denmark', 'DK', '🇩🇰'),
+    ('43', 'Austria', 'AT', '🇦🇹'),
+    ('38', 'France', 'FR', '🇫🇷'),
+    ('34', 'Spain', 'ES', '🇪🇸'),
+    ('35', 'Portugal', 'PT', '🇵🇹'),
+    ('4A', 'Romania', 'RO', '🇷🇴'),
+    ('A', 'United States', 'US', '🇺🇸'),
+    ('C', 'Canada', 'CA', '🇨🇦'),
+    ('7C', 'Australia', 'AU', '🇦🇺'),
+]
+
+
+def get_country_info(hex_code: str, registration: str) -> Dict[str, str]:
+    reg = (registration or '').strip().upper()
+    hex_upper = (hex_code or '').strip().upper()
+
+    for prefix, name, code, flag in REGISTRATION_PREFIX_FLAGS:
+        if reg.startswith(prefix):
+            return {'country': name, 'country_code': code, 'flag': flag}
+
+    for prefix, name, code, flag in HEX_PREFIX_FLAGS:
+        if hex_upper.startswith(prefix):
+            return {'country': name, 'country_code': code, 'flag': flag}
+
+    return {'country': 'Unknown', 'country_code': '', 'flag': '🏳️'}
+
+
 def load_aircraft() -> Dict[str, Any]:
     source_settings = get_source_settings()
     source_type = source_settings['source_type']
@@ -198,6 +281,7 @@ def load_aircraft() -> Dict[str, Any]:
     items = payload.get('aircraft', [])
     aircraft: List[Dict[str, Any]] = []
     for item in items:
+        country_info = get_country_info(item.get('hex', '-'), item.get('r', ''))
         aircraft.append(
             {
                 'hex': item.get('hex', '-'),
@@ -215,6 +299,9 @@ def load_aircraft() -> Dict[str, Any]:
                 'seen_pos': safe_float(item.get('seen_pos')),
                 'messages': safe_int(item.get('messages')),
                 'rssi': safe_float(item.get('rssi')),
+                'country': country_info['country'],
+                'country_code': country_info['country_code'],
+                'flag': country_info['flag'],
             }
         )
 
@@ -235,9 +322,6 @@ def summarize_aircraft(aircraft: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-# -----------------------------
-# Update / restart helpers
-# -----------------------------
 def run_cmd(args: List[str]) -> Dict[str, Any]:
     try:
         result = subprocess.run(
@@ -314,9 +398,6 @@ def self_exit_for_supervisor() -> None:
     os._exit(0)
 
 
-# -----------------------------
-# Routes
-# -----------------------------
 @app.route('/')
 @require_installation
 def index():
@@ -333,6 +414,7 @@ def index():
             or query in (a['flight'] or '').lower()
             or query in (a['registration'] or '').lower()
             or query in (a['type'] or '').lower()
+            or query in (a['country'] or '').lower()
         ]
 
     map_aircraft = [
@@ -346,6 +428,8 @@ def index():
             'track': a['track'],
             'lat': a['lat'],
             'lon': a['lon'],
+            'country': a['country'],
+            'flag': a['flag'],
         }
         for a in aircraft
         if a['lat'] is not None and a['lon'] is not None
@@ -379,19 +463,18 @@ def setup():
         enable_auth = request.form.get('enable_auth') == 'on'
         username = (request.form.get('username') or '').strip()
         password = request.form.get('password') or ''
-        github_donation_url = (request.form.get('github_donation_url') or '').strip()
         restart_command = (request.form.get('restart_command') or DEFAULT_RESTART_COMMAND).strip()
 
         if source_type == 'file' and not aircraft_path:
             flash('Please enter a local path to aircraft.json.', 'danger')
-            return render_template('setup.html')
+            return render_template('setup.html', default_restart_command=DEFAULT_RESTART_COMMAND)
         if source_type == 'url' and not aircraft_url:
             flash('Please enter a remote URL to aircraft.json.', 'danger')
-            return render_template('setup.html')
+            return render_template('setup.html', default_restart_command=DEFAULT_RESTART_COMMAND)
 
         if enable_auth and (not username or not password):
             flash('When configuration protection is enabled, a username and password are required.', 'danger')
-            return render_template('setup.html')
+            return render_template('setup.html', default_restart_command=DEFAULT_RESTART_COMMAND)
 
         set_setting('app_title', app_title)
         set_setting('source_type', source_type)
@@ -399,7 +482,6 @@ def setup():
         set_setting('aircraft_url', aircraft_url)
         set_setting('rows_per_page', rows_per_page)
         set_setting('refresh_interval', refresh_interval)
-        set_setting('github_donation_url', github_donation_url)
         set_setting('restart_command', restart_command)
         set_setting('config_auth_enabled', '1' if enable_auth else '0')
         if enable_auth:
@@ -459,7 +541,6 @@ def config():
         set_setting('aircraft_url', aircraft_url)
         set_setting('rows_per_page', request.form.get('rows_per_page', '100').strip() or '100')
         set_setting('refresh_interval', request.form.get('refresh_interval', '15').strip() or '15')
-        set_setting('github_donation_url', (request.form.get('github_donation_url') or '').strip())
         set_setting('restart_command', (request.form.get('restart_command') or DEFAULT_RESTART_COMMAND).strip())
 
         enable_auth = request.form.get('enable_auth') == 'on'
@@ -485,7 +566,6 @@ def config():
         'rows_per_page': get_setting('rows_per_page', '100'),
         'refresh_interval': get_setting('refresh_interval', '15'),
         'config_username': get_setting('config_username', ''),
-        'github_donation_url': get_github_donation_url(),
         'restart_command': get_restart_command(),
     }
     return render_template('config.html', update_status=update_status, settings=settings)

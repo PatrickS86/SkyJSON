@@ -27,9 +27,6 @@
                     <input type="number" name="refresh_interval" value="{{ settings.refresh_interval }}" min="5" max="300">
                 </label>
             </div>
-            <label>GitHub donation page URL
-                <input type="url" name="github_donation_url" value="{{ settings.github_donation_url }}" placeholder="https://github.com/sponsors/your-github-username">
-            </label>
             <label>Restart command
                 <input type="text" name="restart_command" value="{{ settings.restart_command }}">
             </label>
@@ -47,6 +44,12 @@
     </div>
 
     <div class="stack-col">
+        <div class="card">
+            <h2>Developer support</h2>
+            <p class="muted">This button always links directly to the developer sponsor page on GitHub.</p>
+            <a class="btn btn-secondary" href="{{ github_donation_url }}" target="_blank" rel="noopener">Sponsor PatrickS86 on GitHub</a>
+        </div>
+
         <div class="card">
             <h2>Application updates</h2>
             <p class="muted">Use the button below to check and install updates from GitHub.</p>
