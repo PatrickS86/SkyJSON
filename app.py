@@ -6,6 +6,7 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import requests
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -13,11 +14,15 @@ BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / 'config.db'
 DEFAULT_SECRET = 'change-me-skyjson-secret'
 APP_VERSION = '1.2.0'
+REQUEST_TIMEOUT = 10
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SKYJSON_SECRET_KEY', DEFAULT_SECRET)
 
 
+# -----------------------------
+# Database helpers
+# -----------------------------
 def get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -55,6 +60,9 @@ def set_setting(key: str, value: str) -> None:
 init_db()
 
 
+# -----------------------------
+# App config
+# -----------------------------
 def is_installed() -> bool:
     return get_setting('installed', '0') == '1'
 
@@ -77,7 +85,6 @@ def require_installation(fn):
     return wrapper
 
 
-
 def config_login_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
@@ -97,7 +104,6 @@ def inject_globals():
         'app_version': APP_VERSION,
         'config_auth_enabled': config_auth_enabled(),
         'is_logged_in': is_logged_in(),
-        'deployment_mode': get_setting('deployment_mode', 'standalone'),
     }
 
 
@@ -111,7 +117,6 @@ def safe_float(value: Any) -> Optional[float]:
         return None
 
 
-
 def safe_int(value: Any) -> Optional[int]:
     try:
         return int(float(value))
@@ -119,21 +124,64 @@ def safe_int(value: Any) -> Optional[int]:
         return None
 
 
+def normalize_source_type(source_type: Optional[str]) -> str:
+    return 'url' if source_type == 'url' else 'file'
 
-def load_aircraft() -> Dict[str, Any]:
-    aircraft_path = get_setting('aircraft_path', '')
-    if not aircraft_path:
-        return {'error': 'No aircraft data file is configured yet.', 'aircraft': [], 'now': None}
 
-    path = Path(aircraft_path)
+def get_source_settings() -> Dict[str, str]:
+    source_type = normalize_source_type(get_setting('source_type', 'file'))
+    aircraft_path = get_setting('aircraft_path', '') or ''
+    aircraft_url = get_setting('aircraft_url', '') or ''
+    source_value = aircraft_url if source_type == 'url' else aircraft_path
+    return {
+        'source_type': source_type,
+        'aircraft_path': aircraft_path,
+        'aircraft_url': aircraft_url,
+        'source_value': source_value,
+    }
+
+
+def read_payload_from_file(file_path: str) -> Dict[str, Any]:
+    if not file_path:
+        return {'error': 'No local aircraft.json path is configured yet.', 'aircraft': [], 'now': None}
+
+    path = Path(file_path)
     if not path.exists():
-        return {'error': f'Configured file was not found: {aircraft_path}', 'aircraft': [], 'now': None}
+        return {'error': f'Configured file was not found: {file_path}', 'aircraft': [], 'now': None}
 
     try:
         with path.open('r', encoding='utf-8') as f:
-            payload = json.load(f)
+            return json.load(f)
     except Exception as exc:
-        return {'error': f'Failed to read aircraft data: {exc}', 'aircraft': [], 'now': None}
+        return {'error': f'Failed to read local aircraft data: {exc}', 'aircraft': [], 'now': None}
+
+
+def read_payload_from_url(url: str) -> Dict[str, Any]:
+    if not url:
+        return {'error': 'No remote aircraft.json URL is configured yet.', 'aircraft': [], 'now': None}
+
+    try:
+        response = requests.get(url, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as exc:
+        return {'error': f'Failed to fetch remote aircraft data: {exc}', 'aircraft': [], 'now': None}
+    except ValueError as exc:
+        return {'error': f'Remote source did not return valid JSON: {exc}', 'aircraft': [], 'now': None}
+
+
+def load_aircraft() -> Dict[str, Any]:
+    source_settings = get_source_settings()
+    source_type = source_settings['source_type']
+
+    if source_type == 'url':
+        payload = read_payload_from_url(source_settings['aircraft_url'])
+    else:
+        payload = read_payload_from_file(source_settings['aircraft_path'])
+
+    if payload.get('error'):
+        payload['source_label'] = f"Remote URL: {source_settings['aircraft_url']}" if source_type == 'url' else f"Local file: {source_settings['aircraft_path']}"
+        return payload
 
     items = payload.get('aircraft', [])
     aircraft: List[Dict[str, Any]] = []
@@ -159,8 +207,8 @@ def load_aircraft() -> Dict[str, Any]:
         )
 
     aircraft.sort(key=lambda x: ((x['flight'] or x['hex']).lower(), x['hex']))
-    return {'error': None, 'aircraft': aircraft, 'now': payload.get('now')}
-
+    source_label = f"Remote URL: {source_settings['aircraft_url']}" if source_type == 'url' else f"Local file: {source_settings['aircraft_path']}"
+    return {'error': None, 'aircraft': aircraft, 'now': payload.get('now'), 'source_label': source_label}
 
 
 def summarize_aircraft(aircraft: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -196,7 +244,6 @@ def run_cmd(args: List[str]) -> Dict[str, Any]:
         }
     except Exception as exc:
         return {'ok': False, 'code': -1, 'stdout': '', 'stderr': str(exc)}
-
 
 
 def get_update_status() -> Dict[str, Any]:
@@ -236,24 +283,6 @@ def get_update_status() -> Dict[str, Any]:
     }
 
 
-
-def deployment_details() -> Dict[str, str]:
-    mode = get_setting('deployment_mode', 'standalone')
-    if mode == 'lighttpd':
-        return {
-            'title': 'lighttpd reverse proxy',
-            'summary': 'Run SkyJSON behind lighttpd and a local Gunicorn service for a more production-friendly setup.',
-            'service_file': 'deploy/systemd/skyjson.service',
-            'webserver_file': 'deploy/lighttpd/skyjson.conf',
-        }
-    return {
-        'title': 'Standalone mode',
-        'summary': 'Run SkyJSON directly on a local port for quick setups or internal-only use.',
-        'service_file': 'deploy/systemd/skyjson-standalone.service',
-        'webserver_file': 'Not required',
-    }
-
-
 # -----------------------------
 # Routes
 # -----------------------------
@@ -283,7 +312,7 @@ def index():
         error=data['error'],
         query=query,
         refresh_interval=safe_int(get_setting('refresh_interval', '15')) or 15,
-        source_path=get_setting('aircraft_path', ''),
+        source_path=data.get('source_label', 'not configured'),
     )
 
 
@@ -294,30 +323,32 @@ def setup():
 
     if request.method == 'POST':
         app_title = (request.form.get('app_title') or 'SkyJSON').strip()
+        source_type = normalize_source_type(request.form.get('source_type'))
         aircraft_path = (request.form.get('aircraft_path') or '').strip()
+        aircraft_url = (request.form.get('aircraft_url') or '').strip()
         rows_per_page = request.form.get('rows_per_page', '100').strip() or '100'
         refresh_interval = request.form.get('refresh_interval', '15').strip() or '15'
-        deployment_mode = (request.form.get('deployment_mode') or 'standalone').strip() or 'standalone'
         enable_auth = request.form.get('enable_auth') == 'on'
         username = (request.form.get('username') or '').strip()
         password = request.form.get('password') or ''
 
-        if not aircraft_path:
-            flash('Please enter a path to aircraft.json.', 'danger')
+        if source_type == 'file' and not aircraft_path:
+            flash('Please enter a local path to aircraft.json.', 'danger')
             return render_template('setup.html')
-
-        if deployment_mode not in {'standalone', 'lighttpd'}:
-            deployment_mode = 'standalone'
+        if source_type == 'url' and not aircraft_url:
+            flash('Please enter a remote URL to aircraft.json.', 'danger')
+            return render_template('setup.html')
 
         if enable_auth and (not username or not password):
             flash('When configuration protection is enabled, a username and password are required.', 'danger')
             return render_template('setup.html')
 
         set_setting('app_title', app_title)
+        set_setting('source_type', source_type)
         set_setting('aircraft_path', aircraft_path)
+        set_setting('aircraft_url', aircraft_url)
         set_setting('rows_per_page', rows_per_page)
         set_setting('refresh_interval', refresh_interval)
-        set_setting('deployment_mode', deployment_mode)
         set_setting('config_auth_enabled', '1' if enable_auth else '0')
         if enable_auth:
             set_setting('config_username', username)
@@ -359,14 +390,23 @@ def config_logout():
 @config_login_required
 def config():
     if request.method == 'POST':
+        source_type = normalize_source_type(request.form.get('source_type'))
+        aircraft_path = (request.form.get('aircraft_path') or '').strip()
+        aircraft_url = (request.form.get('aircraft_url') or '').strip()
+
+        if source_type == 'file' and not aircraft_path:
+            flash('Please enter a local path to aircraft.json.', 'danger')
+            return redirect(url_for('config'))
+        if source_type == 'url' and not aircraft_url:
+            flash('Please enter a remote URL to aircraft.json.', 'danger')
+            return redirect(url_for('config'))
+
         set_setting('app_title', (request.form.get('app_title') or 'SkyJSON').strip())
-        set_setting('aircraft_path', (request.form.get('aircraft_path') or '').strip())
+        set_setting('source_type', source_type)
+        set_setting('aircraft_path', aircraft_path)
+        set_setting('aircraft_url', aircraft_url)
         set_setting('rows_per_page', request.form.get('rows_per_page', '100').strip() or '100')
         set_setting('refresh_interval', request.form.get('refresh_interval', '15').strip() or '15')
-        deployment_mode = (request.form.get('deployment_mode') or 'standalone').strip()
-        if deployment_mode not in {'standalone', 'lighttpd'}:
-            deployment_mode = 'standalone'
-        set_setting('deployment_mode', deployment_mode)
 
         enable_auth = request.form.get('enable_auth') == 'on'
         set_setting('config_auth_enabled', '1' if enable_auth else '0')
@@ -383,19 +423,16 @@ def config():
         return redirect(url_for('config'))
 
     update_status = get_update_status()
+    source_settings = get_source_settings()
     settings = {
-        'aircraft_path': get_setting('aircraft_path', ''),
+        'source_type': source_settings['source_type'],
+        'aircraft_path': source_settings['aircraft_path'],
+        'aircraft_url': source_settings['aircraft_url'],
         'rows_per_page': get_setting('rows_per_page', '100'),
         'refresh_interval': get_setting('refresh_interval', '15'),
         'config_username': get_setting('config_username', ''),
-        'deployment_mode': get_setting('deployment_mode', 'standalone'),
     }
-    return render_template(
-        'config.html',
-        update_status=update_status,
-        settings=settings,
-        deployment=deployment_details(),
-    )
+    return render_template('config.html', update_status=update_status, settings=settings)
 
 
 @app.route('/config/update', methods=['POST'])
