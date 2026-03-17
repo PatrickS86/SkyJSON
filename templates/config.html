@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="grid config-grid">
+    <div class="card">
+        <h1>Configuration</h1>
+        <form method="post" class="form-grid">
+            <label>Application title
+                <input type="text" name="app_title" value="{{ app_title }}" required>
+            </label>
+            <label>Path to aircraft.json
+                <input type="text" name="aircraft_path" value="{{ settings.aircraft_path }}" required>
+            </label>
+            <div class="two-col">
+                <label>Rows shown on dashboard
+                    <input type="number" name="rows_per_page" value="{{ settings.rows_per_page }}" min="10" max="5000">
+                </label>
+                <label>Refresh interval (seconds)
+                    <input type="number" name="refresh_interval" value="{{ settings.refresh_interval }}" min="5" max="300">
+                </label>
+            </div>
+            <label>Deployment mode
+                <select name="deployment_mode">
+                    <option value="standalone" {% if settings.deployment_mode == 'standalone' %}selected{% endif %}>Standalone on local port</option>
+                    <option value="lighttpd" {% if settings.deployment_mode == 'lighttpd' %}selected{% endif %}>Behind lighttpd reverse proxy</option>
+                </select>
+            </label>
+            <label class="checkbox-row"><input type="checkbox" name="enable_auth" {% if config_auth_enabled %}checked{% endif %}> Protect configuration panel</label>
+            <div class="two-col">
+                <label>Configuration username
+                    <input type="text" name="username" value="{{ settings.config_username }}">
+                </label>
+                <label>New password
+                    <input type="password" name="password" placeholder="Leave empty to keep current password">
+                </label>
+            </div>
+            <button type="submit" class="btn btn-primary">Save configuration</button>
+        </form>
+    </div>
+
+    <div class="stacked-panels">
+        <div class="card">
+            <h2>Application updates</h2>
+            <p class="muted">Use the button below to check and install updates from GitHub.</p>
+            {% if update_status.supported %}
+                <dl class="meta-list">
+                    <div><dt>Branch</dt><dd>{{ update_status.branch or '—' }}</dd></div>
+                    <div><dt>Current commit</dt><dd>{{ update_status.current_commit or '—' }}</dd></div>
+                    <div><dt>Remote commit</dt><dd>{{ update_status.remote_commit or '—' }}</dd></div>
+                    <div><dt>Status</dt><dd>{{ update_status.message }}</dd></div>
+                </dl>
+                <form method="post" action="{{ url_for('update_app') }}">
+                    <button type="submit" class="btn {% if update_status.update_available %}btn-primary{% else %}btn-secondary{% endif %}">Update from GitHub</button>
+                </form>
+            {% else %}
+                <div class="empty-state">{{ update_status.message }}</div>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h2>Deployment guide</h2>
+            <p class="muted"><strong>{{ deployment.title }}</strong> — {{ deployment.summary }}</p>
+            <dl class="meta-list compact">
+                <div><dt>Systemd file</dt><dd>{{ deployment.service_file }}</dd></div>
+                <div><dt>Webserver file</dt><dd>{{ deployment.webserver_file }}</dd></div>
+            </dl>
+            <div class="empty-state small">
+                For lighttpd deployments, install <code>lighttpd</code>, enable <code>mod_proxy</code>, copy the example config from <code>deploy/lighttpd/skyjson.conf</code>, and run the Gunicorn systemd service from <code>deploy/systemd/skyjson.service</code>.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

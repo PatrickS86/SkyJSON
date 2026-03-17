@@ -1,0 +1,17 @@
+[Unit]
+Description=SkyJSON standalone service
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/skyjson
+Environment="PATH=/opt/skyjson/.venv/bin"
+Environment="SKYJSON_HOST=0.0.0.0"
+Environment="SKYJSON_PORT=8000"
+ExecStart=/opt/skyjson/.venv/bin/python app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

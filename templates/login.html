@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card narrow">
+    <h1>Configuration login</h1>
+    <p class="muted">Sign in to access the SkyJSON configuration panel.</p>
+    <form method="post" class="form-grid">
+        <label>Username
+            <input type="text" name="username" required>
+        </label>
+        <label>Password
+            <input type="password" name="password" required>
+        </label>
+        <button type="submit" class="btn btn-primary">Login</button>
+    </form>
+</div>
+{% endblock %}

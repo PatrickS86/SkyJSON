@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card narrow">
+    <h1>Welcome to SkyJSON</h1>
+    <p class="muted">Complete the web installer to configure the application. This only needs to be done once.</p>
+    <form method="post" class="form-grid">
+        <label>Application title
+            <input type="text" name="app_title" value="SkyJSON" required>
+        </label>
+        <label>Path to aircraft.json
+            <input type="text" name="aircraft_path" placeholder="/run/readsb/aircraft.json" required>
+        </label>
+        <div class="two-col">
+            <label>Rows shown on dashboard
+                <input type="number" name="rows_per_page" value="100" min="10" max="5000">
+            </label>
+            <label>Refresh interval (seconds)
+                <input type="number" name="refresh_interval" value="15" min="5" max="300">
+            </label>
+        </div>
+        <label>Deployment mode
+            <select name="deployment_mode">
+                <option value="standalone">Standalone on local port</option>
+                <option value="lighttpd">Behind lighttpd reverse proxy</option>
+            </select>
+        </label>
+        <div class="empty-state small">
+            <strong>Tip:</strong> Choose <em>lighttpd</em> when the server has no existing web stack and you want SkyJSON behind a lightweight webserver. Example config files are included in <code>deploy/</code>.
+        </div>
+        <label class="checkbox-row"><input type="checkbox" name="enable_auth"> Protect the configuration panel with a username and password</label>
+        <div class="two-col">
+            <label>Configuration username
+                <input type="text" name="username" placeholder="admin">
+            </label>
+            <label>Configuration password
+                <input type="password" name="password" placeholder="••••••••">
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary">Finish installation</button>
+    </form>
+</div>
+{% endblock %}

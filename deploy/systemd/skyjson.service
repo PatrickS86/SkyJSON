@@ -1,0 +1,15 @@
+[Unit]
+Description=SkyJSON Gunicorn service
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/skyjson
+Environment="PATH=/opt/skyjson/.venv/bin"
+ExecStart=/opt/skyjson/.venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8000 app:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

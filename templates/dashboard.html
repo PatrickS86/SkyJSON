@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block extra_head %}
+<meta http-equiv="refresh" content="{{ refresh_interval }}">
+{% endblock %}
+{% block content %}
+<div class="grid stats-grid">
+    <div class="card stat-card"><div class="label">Aircraft</div><div class="value">{{ stats.total }}</div></div>
+    <div class="card stat-card"><div class="label">With Position</div><div class="value">{{ stats.with_position }}</div></div>
+    <div class="card stat-card"><div class="label">Avg Altitude</div><div class="value">{{ stats.avg_altitude if stats.avg_altitude is not none else '—' }}</div></div>
+    <div class="card stat-card"><div class="label">Avg Speed</div><div class="value">{{ stats.avg_speed if stats.avg_speed is not none else '—' }}</div></div>
+</div>
+
+<div class="card">
+    <div class="toolbar">
+        <div>
+            <h2>Live aircraft overview</h2>
+            <p class="muted">Source: {{ source_path or 'not configured' }}</p>
+        </div>
+        <form method="get" class="search-form">
+            <input type="text" name="q" placeholder="Search hex, callsign, registration or type" value="{{ request.args.get('q', '') }}">
+            <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+    </div>
+
+    {% if error %}
+    <div class="empty-state">{{ error }}</div>
+    {% else %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Hex</th>
+                    <th>Callsign</th>
+                    <th>Registration</th>
+                    <th>Type</th>
+                    <th>Altitude</th>
+                    <th>Speed</th>
+                    <th>Track</th>
+                    <th>Lat</th>
+                    <th>Lon</th>
+                    <th>Messages</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for a in aircraft %}
+                <tr>
+                    <td>{{ a.hex }}</td>
+                    <td>{{ a.flight or '—' }}</td>
+                    <td>{{ a.registration or '—' }}</td>
+                    <td>{{ a.type or '—' }}</td>
+                    <td>{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
+                    <td>{{ a.gs if a.gs is not none else '—' }}</td>
+                    <td>{{ a.track if a.track is not none else '—' }}</td>
+                    <td>{{ a.lat if a.lat is not none else '—' }}</td>
+                    <td>{{ a.lon if a.lon is not none else '—' }}</td>
+                    <td>{{ a.messages if a.messages is not none else '—' }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="10" class="muted center">No aircraft matched your query.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="muted small">Showing {{ aircraft|length }} of {{ total_results }} results. Auto-refresh every {{ refresh_interval }} seconds.</p>
+    {% endif %}
+</div>
+{% endblock %}
