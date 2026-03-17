@@ -80,3 +80,73 @@ code { background: rgba(255,255,255,.06); padding: 2px 6px; border-radius: 6px; 
   .config-grid, .two-col { grid-template-columns: 1fr; }
   #aircraft-map { height: 420px; }
 }
+
+
+.flag-badge {
+  margin-right: 0;
+  width: 34px;
+  height: 34px;
+  font-size: 18px;
+}
+.popup-elevated {
+  min-width: 260px;
+  overflow: hidden;
+  border-radius: 16px;
+}
+.popup-topline {
+  height: 6px;
+  margin: -12px -12px 14px -12px;
+}
+.popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.popup-title-group {
+  display: grid;
+  gap: 4px;
+}
+.popup-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.popup-subtitle {
+  font-size: 13px;
+  color: #475569;
+}
+.popup-flag {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: #eef6ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  border: 1px solid rgba(15, 23, 42, .08);
+}
+.popup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+.popup-grid div {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.popup-grid span {
+  display: block;
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+.popup-grid strong {
+  color: #0f172a;
+  font-size: 14px;
+}

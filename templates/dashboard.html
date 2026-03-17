@@ -53,7 +53,7 @@
                     <tr>
                         <th>Hex</th>
                         <th>Callsign</th>
-                        <th>Country</th>
+                        <th>Flag</th>
                         <th>Registration</th>
                         <th>Type</th>
                         <th>Altitude</th>
@@ -69,7 +69,7 @@
                     <tr>
                         <td>{{ a.hex }}</td>
                         <td>{{ a.flight or '—' }}</td>
-                        <td><span class="flag-badge" title="{{ a.country }}">{{ a.flag }}</span> {{ a.country }}</td>
+                        <td><span class="flag-badge" title="{{ a.country }}">{{ a.flag }}</span></td>
                         <td>{{ a.registration or '—' }}</td>
                         <td>{{ a.type or '—' }}</td>
                         <td>{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
@@ -86,7 +86,7 @@
             </table>
         </div>
         <p class="muted small">Showing {{ aircraft|length }} of {{ total_results }} results. Auto-refresh every {{ refresh_interval }} seconds.</p>
-        <p class="muted small">Country flags are estimated from the registration prefix or ICAO hex range and may not always be exact.</p>
+        <p class="muted small">Flags are estimated from the registration prefix or ICAO hex range and may not always be exact.</p>
     {% endif %}
 </div>
 
@@ -119,20 +119,28 @@ for (const aircraft of aircraftData) {
         html: `<div class="plane-marker" style="color:${color}; transform: rotate(${heading}deg)">✈</div>`,
         iconSize: [24, 24],
         iconAnchor: [12, 12],
-        popupAnchor: [0, -12]
+        popupAnchor: [0, -14]
     });
 
     const marker = L.marker([aircraft.lat, aircraft.lon], { icon }).addTo(map);
     marker.bindPopup(`
-        <div class="popup-card">
-            <strong>${label}</strong><br>
-            ${aircraft.flag || '🏳️'} ${aircraft.country || 'Unknown'}<br>
-            HEX: ${aircraft.hex || '—'}<br>
-            Registration: ${aircraft.registration || '—'}<br>
-            Type: ${aircraft.type || '—'}<br>
-            Altitude: ${aircraft.alt_baro ?? '—'}<br>
-            Speed: ${aircraft.gs ?? '—'}<br>
-            Track: ${aircraft.track ?? '—'}
+        <div class="popup-card popup-elevated">
+            <div class="popup-topline" style="background:${color}"></div>
+            <div class="popup-header">
+                <div class="popup-title-group">
+                    <div class="popup-title">${label}</div>
+                    <div class="popup-subtitle">${aircraft.registration || 'Unknown registration'}</div>
+                </div>
+                <div class="popup-flag">${aircraft.flag || '🏳️'}</div>
+            </div>
+            <div class="popup-grid">
+                <div><span>HEX</span><strong>${aircraft.hex || '—'}</strong></div>
+                <div><span>Type</span><strong>${aircraft.type || '—'}</strong></div>
+                <div><span>Altitude</span><strong>${aircraft.alt_baro ?? '—'}</strong></div>
+                <div><span>Speed</span><strong>${aircraft.gs ?? '—'}</strong></div>
+                <div><span>Track</span><strong>${aircraft.track ?? '—'}</strong></div>
+                <div><span>Country</span><strong>${aircraft.country || 'Unknown'}</strong></div>
+            </div>
         </div>
     `);
     bounds.push([aircraft.lat, aircraft.lon]);
