@@ -12,7 +12,7 @@ SkyJSON is a self-hosted Linux web application that reads aircraft data from an 
 - Dashboard with search, stats, map view, and automatic refresh
 - Built-in **Update from GitHub** button in the configuration panel
 - Built-in **Restart app** button in the configuration panel
-- Optional **GitHub Sponsors** donation link shown in the app
+- Optional **GitHub donation page** link shown in the app
 - Designed to run on Linux with a simple Python setup
 
 ## Supported sources
@@ -40,9 +40,9 @@ You can use either:
 - a restart command, such as `systemctl restart skyjson`
 - self-exit mode, which works when SkyJSON is managed by a supervisor that automatically restarts the app
 
-## GitHub donation link
+## GitHub donation page
 
-You can set a GitHub Sponsors URL in the installer or configuration panel. When set, a donation link appears in the app navigation and dashboard.
+You can set a GitHub donation page URL in the installer or configuration panel. When set, a donation link appears in the app navigation and dashboard.
 
 ## License
 

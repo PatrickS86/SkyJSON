@@ -19,8 +19,8 @@
             <p class="muted">Source: {{ source_path or 'not configured' }}</p>
         </div>
         <div class="toolbar-actions">
-            {% if github_sponsors_url %}
-            <a class="btn btn-secondary" href="{{ github_sponsors_url }}" target="_blank" rel="noopener">Support on GitHub</a>
+            {% if github_donation_url %}
+            <a class="btn btn-secondary" href="{{ github_donation_url }}" target="_blank" rel="noopener">Support the developer on GitHub</a>
             {% endif %}
             <form method="get" class="search-form">
                 <input type="text" name="q" placeholder="Search hex, callsign, registration or type" value="{{ request.args.get('q', '') }}">

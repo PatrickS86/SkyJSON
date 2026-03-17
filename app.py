@@ -101,7 +101,10 @@ def config_login_required(fn):
     return wrapper
 
 
-def get_github_sponsors_url() -> str:
+def get_github_donation_url() -> str:
+    value = (get_setting('github_donation_url', '') or '').strip()
+    if value:
+        return value
     return (get_setting('github_sponsors_url', '') or '').strip()
 
 
@@ -112,7 +115,7 @@ def inject_globals():
         'app_version': APP_VERSION,
         'config_auth_enabled': config_auth_enabled(),
         'is_logged_in': is_logged_in(),
-        'github_sponsors_url': get_github_sponsors_url(),
+        'github_donation_url': get_github_donation_url(),
     }
 
 
@@ -376,7 +379,7 @@ def setup():
         enable_auth = request.form.get('enable_auth') == 'on'
         username = (request.form.get('username') or '').strip()
         password = request.form.get('password') or ''
-        github_sponsors_url = (request.form.get('github_sponsors_url') or '').strip()
+        github_donation_url = (request.form.get('github_donation_url') or '').strip()
         restart_command = (request.form.get('restart_command') or DEFAULT_RESTART_COMMAND).strip()
 
         if source_type == 'file' and not aircraft_path:
@@ -396,7 +399,7 @@ def setup():
         set_setting('aircraft_url', aircraft_url)
         set_setting('rows_per_page', rows_per_page)
         set_setting('refresh_interval', refresh_interval)
-        set_setting('github_sponsors_url', github_sponsors_url)
+        set_setting('github_donation_url', github_donation_url)
         set_setting('restart_command', restart_command)
         set_setting('config_auth_enabled', '1' if enable_auth else '0')
         if enable_auth:
@@ -456,7 +459,7 @@ def config():
         set_setting('aircraft_url', aircraft_url)
         set_setting('rows_per_page', request.form.get('rows_per_page', '100').strip() or '100')
         set_setting('refresh_interval', request.form.get('refresh_interval', '15').strip() or '15')
-        set_setting('github_sponsors_url', (request.form.get('github_sponsors_url') or '').strip())
+        set_setting('github_donation_url', (request.form.get('github_donation_url') or '').strip())
         set_setting('restart_command', (request.form.get('restart_command') or DEFAULT_RESTART_COMMAND).strip())
 
         enable_auth = request.form.get('enable_auth') == 'on'
@@ -482,7 +485,7 @@ def config():
         'rows_per_page': get_setting('rows_per_page', '100'),
         'refresh_interval': get_setting('refresh_interval', '15'),
         'config_username': get_setting('config_username', ''),
-        'github_sponsors_url': get_github_sponsors_url(),
+        'github_donation_url': get_github_donation_url(),
         'restart_command': get_restart_command(),
     }
     return render_template('config.html', update_status=update_status, settings=settings)
