@@ -34,7 +34,7 @@ http://readsb.local/aircraft.json
 Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/skyjson.git
+git clone https://github.com/PatrickS86/skyjson.git
 cd skyjson
 ```
 
