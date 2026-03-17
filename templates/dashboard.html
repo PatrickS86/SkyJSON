@@ -141,6 +141,7 @@ let firstFitDone = false;
 let currentMapAircraft = initialMapAircraft;
 let currentAircraft = initialAircraft;
 let sortState = { key: 'flight', dir: 'asc' };
+let selectedAircraftHex = null;
 
 function compareValues(a, b, key) {
     const av = a[key];
@@ -197,6 +198,7 @@ function focusAircraftOnMap(hex) {
         if (layer.aircraftHex === hex) foundMarker = layer;
     });
     if (foundMarker) {
+        selectedAircraftHex = hex;
         map.setView([entry.lat, entry.lon], Math.max(map.getZoom(), 12), { animate: true });
         foundMarker.openPopup();
     }
@@ -232,6 +234,15 @@ function renderMap(aircraftList, refit=false) {
             });
         }
 
+        marker.on('popupopen', () => {
+            selectedAircraftHex = aircraft.hex || null;
+        });
+        marker.on('popupclose', () => {
+            if (selectedAircraftHex === aircraft.hex) {
+                selectedAircraftHex = null;
+            }
+        });
+
         marker.bindPopup(`
             <div class="popup-card popup-elevated">
                 <div class="popup-topline" style="background:${color}"></div>
@@ -252,6 +263,9 @@ function renderMap(aircraftList, refit=false) {
                 </div>
             </div>
         `);
+        if (selectedAircraftHex && aircraft.hex === selectedAircraftHex) {
+            marker.openPopup();
+        }
         bounds.push([aircraft.lat, aircraft.lon]);
     }
 
