@@ -286,3 +286,181 @@ th { position: sticky; top: 0; background: #13233b; font-size: 11px; text-transf
   .compact-search input { min-width: 0; width: 100%; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
 }
+
+
+.aircraft-label {
+  background: rgba(7, 14, 26, .32);
+  color: rgba(238, 246, 255, .95);
+  border: 1px solid rgba(118, 213, 255, .14);
+  backdrop-filter: blur(3px);
+}
+
+.config-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) 380px;
+  gap: 16px;
+  align-items: start;
+}
+.config-main {
+  padding: 18px;
+}
+.config-side {
+  display: grid;
+  gap: 16px;
+}
+.side-card {
+  padding: 16px;
+}
+.section-head {
+  margin-bottom: 12px;
+}
+.section-head h1 {
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+.polished-form {
+  gap: 14px;
+}
+.form-section {
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.02);
+  border-radius: 16px;
+  padding: 16px;
+}
+.form-section h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 4px;
+}
+
+.table-section {
+  margin-top: 14px;
+}
+.table-topbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.table-topbar h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+.large-table-wrap {
+  border-radius: 16px;
+}
+.aircraft-data-table th,
+.aircraft-data-table td {
+  white-space: nowrap;
+}
+.aircraft-data-table tbody tr:hover td {
+  background: rgba(255,255,255,.035);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 10, 18, .58);
+  backdrop-filter: blur(4px);
+  z-index: 120;
+}
+.modal-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: min(520px, calc(100% - 24px));
+  transform: translate(-50%, -50%);
+  background: linear-gradient(180deg, rgba(16,26,45,.98), rgba(13,22,37,.98));
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 18px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.35);
+  padding: 16px;
+  z-index: 121;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.modal-header h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+.icon-btn {
+  border: 0;
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.column-list {
+  display: grid;
+  gap: 8px;
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 2px;
+}
+.column-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0,1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.03);
+}
+.column-row.drag-over {
+  border-color: rgba(132,221,255,.35);
+  background: rgba(132,221,255,.07);
+}
+.drag-handle {
+  color: var(--muted);
+  cursor: grab;
+  text-align: center;
+  font-size: 16px;
+}
+.column-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+.column-toggle input {
+  width: auto;
+}
+.column-row-actions {
+  display: flex;
+  gap: 6px;
+}
+.mini-btn {
+  border: 0;
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+@media (max-width: 1100px) {
+  .config-page {
+    grid-template-columns: 1fr;
+  }
+}

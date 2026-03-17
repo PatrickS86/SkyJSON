@@ -99,7 +99,75 @@
             </div>
         </aside>
     </div>
+
+    <div class="table-section">
+        <div class="table-topbar">
+            <div>
+                <h2>Detailed table</h2>
+                <p class="muted small">Show, hide and reorder columns with the Columns button.</p>
+            </div>
+            <button type="button" class="btn btn-secondary" id="open-columns-modal">Columns</button>
+        </div>
+
+        <div class="table-wrap large-table-wrap">
+            <table id="aircraft-table" class="aircraft-data-table">
+                <thead>
+                    <tr id="aircraft-table-head">
+                        <th data-col="hex">Hex</th>
+                        <th data-col="callsign">Callsign</th>
+                        <th data-col="flag">Flag</th>
+                        <th data-col="registration">Registration</th>
+                        <th data-col="type">Type</th>
+                        <th data-col="source">Source</th>
+                        <th data-col="altitude">Altitude</th>
+                        <th data-col="speed">Speed</th>
+                        <th data-col="track">Track</th>
+                        <th data-col="lat">Lat</th>
+                        <th data-col="lon">Lon</th>
+                        <th data-col="messages">Messages</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for a in aircraft %}
+                    <tr>
+                        <td data-col="hex">{{ a.hex }}</td>
+                        <td data-col="callsign">{{ a.flight or '—' }}</td>
+                        <td data-col="flag"><span class="flag-badge small-flag" title="{{ a.country }}">{{ a.flag }}</span></td>
+                        <td data-col="registration">{{ a.registration or '—' }}</td>
+                        <td data-col="type">{{ a.type or '—' }}</td>
+                        <td data-col="source"><span class="source-badge source-{{ a.signal_source|lower|replace('-', '')|replace(' ', '') }}">{{ a.signal_source }}</span></td>
+                        <td data-col="altitude">{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
+                        <td data-col="speed">{{ a.gs if a.gs is not none else '—' }}</td>
+                        <td data-col="track">{{ a.track if a.track is not none else '—' }}</td>
+                        <td data-col="lat">{{ a.lat if a.lat is not none else '—' }}</td>
+                        <td data-col="lon">{{ a.lon if a.lon is not none else '—' }}</td>
+                        <td data-col="messages">{{ a.messages if a.messages is not none else '—' }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="12" class="muted center">No aircraft matched your query.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="muted small footer-note">Flags are estimated from the registration prefix or ICAO hex range and may not always be exact.</p>
+    </div>
     {% endif %}
+</div>
+
+<div class="modal-backdrop" id="columns-modal-backdrop" hidden></div>
+<div class="modal-card" id="columns-modal" hidden>
+    <div class="modal-header">
+        <div>
+            <h3>Table columns</h3>
+            <p class="muted small">Toggle columns and drag them into a new order.</p>
+        </div>
+        <button type="button" class="icon-btn" id="close-columns-modal" aria-label="Close">✕</button>
+    </div>
+    <div class="column-list" id="column-list"></div>
+    <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="reset-columns">Reset</button>
+        <button type="button" class="btn btn-primary" id="save-columns">Apply</button>
+    </div>
 </div>
 
 {% if map_aircraft %}
@@ -214,4 +282,169 @@ for (const id of ['toggle-registration', 'toggle-callsign', 'toggle-type', 'togg
 updateLabels();
 </script>
 {% endif %}
+
+<script>
+(function() {
+    const STORAGE_KEY = 'skyjson_table_columns_v1';
+    const defaults = [
+        {key: 'hex', label: 'Hex', visible: true},
+        {key: 'callsign', label: 'Callsign', visible: true},
+        {key: 'flag', label: 'Flag', visible: true},
+        {key: 'registration', label: 'Registration', visible: true},
+        {key: 'type', label: 'Type', visible: true},
+        {key: 'source', label: 'Source', visible: true},
+        {key: 'altitude', label: 'Altitude', visible: true},
+        {key: 'speed', label: 'Speed', visible: true},
+        {key: 'track', label: 'Track', visible: true},
+        {key: 'lat', label: 'Lat', visible: true},
+        {key: 'lon', label: 'Lon', visible: true},
+        {key: 'messages', label: 'Messages', visible: true}
+    ];
+
+    const backdrop = document.getElementById('columns-modal-backdrop');
+    const modal = document.getElementById('columns-modal');
+    const openBtn = document.getElementById('open-columns-modal');
+    const closeBtn = document.getElementById('close-columns-modal');
+    const saveBtn = document.getElementById('save-columns');
+    const resetBtn = document.getElementById('reset-columns');
+    const list = document.getElementById('column-list');
+    const table = document.getElementById('aircraft-table');
+
+    if (!backdrop || !modal || !openBtn || !closeBtn || !saveBtn || !resetBtn || !list || !table) return;
+
+    function loadState() {
+        try {
+            const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+            if (Array.isArray(stored) && stored.length) {
+                const defaultKeys = defaults.map(x => x.key);
+                const storedKeys = stored.map(x => x.key);
+                if (defaultKeys.every(k => storedKeys.includes(k))) return stored;
+            }
+        } catch (e) {}
+        return JSON.parse(JSON.stringify(defaults));
+    }
+
+    let state = loadState();
+    let dragIndex = null;
+
+    function saveState() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function openModal() {
+        renderList();
+        backdrop.hidden = false;
+        modal.hidden = false;
+    }
+
+    function closeModal() {
+        backdrop.hidden = true;
+        modal.hidden = true;
+    }
+
+    function renderList() {
+        list.innerHTML = '';
+        state.forEach((item, index) => {
+            const row = document.createElement('div');
+            row.className = 'column-row';
+            row.draggable = true;
+            row.dataset.index = String(index);
+            row.innerHTML = `
+                <div class="drag-handle">☰</div>
+                <label class="column-toggle">
+                    <input type="checkbox" ${item.visible ? 'checked' : ''}>
+                    <span>${item.label}</span>
+                </label>
+                <div class="column-row-actions">
+                    <button type="button" class="mini-btn up-btn">↑</button>
+                    <button type="button" class="mini-btn down-btn">↓</button>
+                </div>
+            `;
+
+            row.querySelector('input').addEventListener('change', (e) => {
+                item.visible = e.target.checked;
+            });
+            row.querySelector('.up-btn').addEventListener('click', () => moveItem(index, -1));
+            row.querySelector('.down-btn').addEventListener('click', () => moveItem(index, 1));
+
+            row.addEventListener('dragstart', () => {
+                dragIndex = index;
+                row.classList.add('dragging');
+            });
+            row.addEventListener('dragend', () => {
+                dragIndex = null;
+                row.classList.remove('dragging');
+            });
+            row.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                row.classList.add('drag-over');
+            });
+            row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+            row.addEventListener('drop', (e) => {
+                e.preventDefault();
+                row.classList.remove('drag-over');
+                if (dragIndex === null || dragIndex === index) return;
+                const [moved] = state.splice(dragIndex, 1);
+                state.splice(index, 0, moved);
+                renderList();
+            });
+
+            list.appendChild(row);
+        });
+    }
+
+    function moveItem(index, direction) {
+        const next = index + direction;
+        if (next < 0 || next >= state.length) return;
+        [state[index], state[next]] = [state[next], state[index]];
+        renderList();
+    }
+
+    function applyTableState() {
+        const headerRow = table.querySelector('thead tr');
+        const bodyRows = Array.from(table.querySelectorAll('tbody tr'));
+        const headerMap = {};
+        Array.from(headerRow.children).forEach(th => headerMap[th.dataset.col] = th);
+
+        const rowCellMaps = bodyRows.map(row => {
+            const map = {};
+            Array.from(row.children).forEach(td => map[td.dataset.col] = td);
+            return {row, map};
+        });
+
+        state.forEach(item => {
+            const th = headerMap[item.key];
+            if (th) {
+                th.style.display = item.visible ? '' : 'none';
+                headerRow.appendChild(th);
+            }
+        });
+
+        rowCellMaps.forEach(({row, map}) => {
+            state.forEach(item => {
+                const td = map[item.key];
+                if (td) {
+                    td.style.display = item.visible ? '' : 'none';
+                    row.appendChild(td);
+                }
+            });
+        });
+    }
+
+    openBtn.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    backdrop.addEventListener('click', closeModal);
+    saveBtn.addEventListener('click', () => {
+        saveState();
+        applyTableState();
+        closeModal();
+    });
+    resetBtn.addEventListener('click', () => {
+        state = JSON.parse(JSON.stringify(defaults));
+        renderList();
+    });
+
+    applyTableState();
+})();
+</script>
 {% endblock %}

@@ -1,51 +1,70 @@
 
 {% extends 'base.html' %}
 {% block content %}
-<div class="grid config-grid">
-    <div class="card">
-        <h1>Configuration</h1>
-        <form method="post" class="form-grid">
-            <label>Aircraft data source
-                <select name="source_type">
-                    <option value="file" {% if settings.source_type == 'file' %}selected{% endif %}>Local file</option>
-                    <option value="url" {% if settings.source_type == 'url' %}selected{% endif %}>Remote URL</option>
-                </select>
-            </label>
-            <label>Local path to aircraft.json
-                <input type="text" name="aircraft_path" value="{{ settings.aircraft_path }}" placeholder="/run/readsb/aircraft.json">
-            </label>
-            <label>Remote URL to aircraft.json
-                <input type="url" name="aircraft_url" value="{{ settings.aircraft_url }}" placeholder="http://192.168.1.50/aircraft.json">
-            </label>
-            <div class="two-col">
+<div class="config-page">
+    <div class="config-main card">
+        <div class="section-head">
+            <div>
+                <h1>Configuration</h1>
+                <p class="muted">Update the data source, refresh settings and access protection.</p>
+            </div>
+        </div>
+
+        <form method="post" class="form-grid polished-form">
+            <div class="form-section">
+                <h3>Data source</h3>
+                <div class="two-col">
+                    <label>Aircraft data source
+                        <select name="source_type">
+                            <option value="file" {% if settings.source_type == 'file' %}selected{% endif %}>Local file</option>
+                            <option value="url" {% if settings.source_type == 'url' %}selected{% endif %}>Remote URL</option>
+                        </select>
+                    </label>
+                    <label>Refresh interval (seconds)
+                        <input type="number" name="refresh_interval" value="{{ settings.refresh_interval }}" min="5" max="300">
+                    </label>
+                </div>
+                <label>Local path to aircraft.json
+                    <input type="text" name="aircraft_path" value="{{ settings.aircraft_path }}" placeholder="/run/readsb/aircraft.json">
+                </label>
+                <label>Remote URL to aircraft.json
+                    <input type="url" name="aircraft_url" value="{{ settings.aircraft_url }}" placeholder="http://192.168.1.50/aircraft.json">
+                </label>
                 <label>Rows shown on dashboard
                     <input type="number" name="rows_per_page" value="{{ settings.rows_per_page }}" min="10" max="5000">
                 </label>
-                <label>Refresh interval (seconds)
-                    <input type="number" name="refresh_interval" value="{{ settings.refresh_interval }}" min="5" max="300">
-                </label>
             </div>
-            <label class="checkbox-row"><input type="checkbox" name="enable_auth" {% if config_auth_enabled %}checked{% endif %}> Protect configuration panel</label>
-            <div class="two-col">
-                <label>Configuration username
-                    <input type="text" name="username" value="{{ settings.config_username }}">
+
+            <div class="form-section">
+                <h3>Access protection</h3>
+                <label class="checkbox-row">
+                    <input type="checkbox" name="enable_auth" {% if config_auth_enabled %}checked{% endif %}>
+                    Protect configuration panel
                 </label>
-                <label>New password
-                    <input type="password" name="password" placeholder="Leave empty to keep current password">
-                </label>
+                <div class="two-col">
+                    <label>Configuration username
+                        <input type="text" name="username" value="{{ settings.config_username }}">
+                    </label>
+                    <label>New password
+                        <input type="password" name="password" placeholder="Leave empty to keep current password">
+                    </label>
+                </div>
             </div>
-            <button type="submit" class="btn btn-primary">Save configuration</button>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save configuration</button>
+            </div>
         </form>
     </div>
 
-    <div class="stack-col">
-        <div class="card">
+    <div class="config-side">
+        <div class="card side-card">
             <h2>Developer support</h2>
             <p class="muted">This is the only sponsor link shown in the app.</p>
             <a class="btn btn-secondary" href="{{ github_donation_url }}" target="_blank" rel="noopener">Sponsor PatrickS86 on GitHub</a>
         </div>
 
-        <div class="card">
+        <div class="card side-card">
             <h2>Version management</h2>
             <dl class="meta-list">
                 <div><dt>Current version</dt><dd>{{ update_status.current_version or app_version }}</dd></div>
@@ -65,9 +84,9 @@
             {% endif %}
         </div>
 
-        <div class="card">
+        <div class="card side-card">
             <h2>Application restart</h2>
-            <p class="muted">The restart button now shuts down the current process and starts a fresh Python process after a short delay. This works best for standalone SkyJSON on Linux.</p>
+            <p class="muted">Restart the current standalone Python process after a short delay.</p>
             <form method="post" action="{{ url_for('restart_app') }}">
                 <button type="submit" class="btn btn-primary">Restart app</button>
             </form>
