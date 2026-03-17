@@ -1,11 +1,12 @@
+
 {% extends 'base.html' %}
 {% block extra_head %}
-<meta http-equiv="refresh" content="10;url={{ url_for('index') }}">
+<meta http-equiv="refresh" content="12;url={{ url_for('index') }}">
 {% endblock %}
 {% block content %}
 <div class="card narrow">
     <h1>SkyJSON is restarting</h1>
-    <p class="muted">The current Python process was asked to restart itself. This page will redirect back to the dashboard in about 10 seconds.</p>
+    <p class="muted">The current process is shutting down and a fresh process is scheduled to start in a moment. This page will retry the dashboard automatically.</p>
     <a class="btn btn-primary" href="{{ url_for('index') }}">Try dashboard again</a>
 </div>
 {% endblock %}

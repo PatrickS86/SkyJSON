@@ -1,5 +1,8 @@
+
 import json
 import os
+import re
+import shlex
 import sqlite3
 import subprocess
 import sys
@@ -7,7 +10,7 @@ import threading
 import time
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from flask import Flask, flash, redirect, render_template, request, session, url_for
@@ -16,7 +19,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / 'config.db'
 DEFAULT_SECRET = 'change-me-skyjson-secret'
-APP_VERSION = '1.5.0'
+APP_VERSION = '1.6.0'
 REQUEST_TIMEOUT = 10
 GITHUB_SPONSOR_URL = 'https://github.com/sponsors/PatrickS86'
 
@@ -326,11 +329,43 @@ def run_cmd(args: List[str]) -> Dict[str, Any]:
         return {'ok': False, 'code': -1, 'stdout': '', 'stderr': str(exc)}
 
 
+def parse_version(version: Optional[str]) -> Optional[Tuple[int, int, int]]:
+    if not version:
+        return None
+    match = re.search(r'(\d+)\.(\d+)\.(\d+)', version)
+    if not match:
+        return None
+    return tuple(int(part) for part in match.groups())
+
+
+def compare_versions(current: Optional[str], remote: Optional[str]) -> Optional[str]:
+    current_parsed = parse_version(current)
+    remote_parsed = parse_version(remote)
+    if not current_parsed or not remote_parsed or remote_parsed <= current_parsed:
+        return None
+    if remote_parsed[0] > current_parsed[0]:
+        return 'major'
+    if remote_parsed[1] > current_parsed[1]:
+        return 'minor'
+    return 'patch'
+
+
+def read_remote_app_version(branch_name: str) -> Optional[str]:
+    show = run_cmd(['git', 'show', f'origin/{branch_name}:app.py'])
+    if not show['ok'] or not show['stdout']:
+        return None
+    match = re.search(r"APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]", show['stdout'])
+    return match.group(1) if match else None
+
+
 def get_update_status() -> Dict[str, Any]:
     if not (BASE_DIR / '.git').exists():
         return {
             'supported': False,
             'message': 'Updates require SkyJSON to be installed from a Git repository.',
+            'current_version': APP_VERSION,
+            'remote_version': None,
+            'update_kind': None,
         }
 
     fetch = run_cmd(['git', 'fetch', 'origin'])
@@ -339,6 +374,9 @@ def get_update_status() -> Dict[str, Any]:
             'supported': True,
             'update_available': None,
             'message': f"Git fetch failed: {fetch['stderr'] or fetch['stdout']}",
+            'current_version': APP_VERSION,
+            'remote_version': None,
+            'update_kind': None,
         }
 
     branch = run_cmd(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
@@ -350,22 +388,51 @@ def get_update_status() -> Dict[str, Any]:
             'supported': True,
             'update_available': None,
             'message': 'Unable to determine Git update status for this installation.',
+            'current_version': APP_VERSION,
+            'remote_version': None,
+            'update_kind': None,
         }
 
+    branch_name = branch['stdout']
+    remote_version = read_remote_app_version(branch_name) or APP_VERSION
     update_available = current['stdout'] != remote['stdout']
+    update_kind = compare_versions(APP_VERSION, remote_version)
+
+    if update_available and update_kind:
+        message = f'A {update_kind} update is available on GitHub.'
+    elif update_available:
+        message = 'A new Git update is available on GitHub.'
+    else:
+        message = 'SkyJSON is up to date.'
+
     return {
         'supported': True,
         'update_available': update_available,
-        'branch': branch['stdout'],
+        'branch': branch_name,
         'current_commit': current['stdout'][:7],
         'remote_commit': remote['stdout'][:7],
-        'message': 'A newer version is available on GitHub.' if update_available else 'SkyJSON is up to date.',
+        'current_version': APP_VERSION,
+        'remote_version': remote_version,
+        'update_kind': update_kind,
+        'message': message,
     }
 
 
-def restart_current_process() -> None:
-    time.sleep(1.0)
-    os.execv(sys.executable, [sys.executable] + sys.argv)
+def delayed_restart_process() -> None:
+    python_executable = sys.executable
+    argv = [python_executable] + sys.argv
+    quoted_cmd = ' '.join(shlex.quote(part) for part in argv)
+    restart_script = f"sleep 2; cd {shlex.quote(str(BASE_DIR))} && exec {quoted_cmd}"
+    subprocess.Popen(
+        ['/bin/sh', '-c', restart_script],
+        cwd=BASE_DIR,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+        env=os.environ.copy(),
+    )
+    time.sleep(0.5)
+    os._exit(0)
 
 
 @app.route('/')
@@ -544,7 +611,7 @@ def update_app():
 
     pull = run_cmd(['git', 'pull', '--ff-only'])
     if pull['ok']:
-        flash('SkyJSON was updated successfully. Restart the application if needed.', 'success')
+        flash('SkyJSON was updated successfully. Restart the application to load the new version.', 'success')
     else:
         flash(f"Update failed: {pull['stderr'] or pull['stdout']}", 'danger')
     return redirect(url_for('config'))
@@ -553,7 +620,7 @@ def update_app():
 @app.route('/config/restart', methods=['POST'])
 @config_login_required
 def restart_app():
-    threading.Thread(target=restart_current_process, daemon=True).start()
+    threading.Thread(target=delayed_restart_process, daemon=True).start()
     return render_template('restart.html')
 
 
@@ -566,4 +633,4 @@ if __name__ == '__main__':
     host = os.environ.get('SKYJSON_HOST', '0.0.0.0')
     port = int(os.environ.get('SKYJSON_PORT', '8000'))
     debug = os.environ.get('SKYJSON_DEBUG', '0') == '1'
-    app.run(host=host, port=port, debug=debug)
+    app.run(host=host, port=port, debug=debug, use_reloader=False)

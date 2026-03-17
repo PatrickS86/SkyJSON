@@ -1,3 +1,4 @@
+
 {% extends 'base.html' %}
 {% block extra_head %}
 <meta http-equiv="refresh" content="{{ refresh_interval }}">
@@ -29,12 +30,21 @@
     {% if error %}
     <div class="empty-state">{{ error }}</div>
     {% else %}
+        <div class="map-toolbar">
+            <div class="map-toolbar-title">
+                <h3>Aircraft map</h3>
+                <p class="muted small">Marker colors change with altitude. Toggle which label parts you want to show.</p>
+            </div>
+            <div class="label-toggles">
+                <label><input type="checkbox" id="toggle-registration" checked> registration</label>
+                <label><input type="checkbox" id="toggle-callsign" checked> callsign</label>
+                <label><input type="checkbox" id="toggle-type"> type</label>
+                <label><input type="checkbox" id="toggle-altitude"> altitude</label>
+            </div>
+        </div>
+
         {% if map_aircraft %}
         <div class="map-shell">
-            <div class="map-header">
-                <h3>Aircraft map</h3>
-                <p class="muted small">Marker colors change with altitude.</p>
-            </div>
             <div id="aircraft-map"></div>
             <div class="legend-row">
                 <span><i class="legend-dot alt-low"></i> low</span>
@@ -109,7 +119,50 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
+const markers = [];
 const bounds = [];
+
+function labelConfig() {
+    return {
+        registration: document.getElementById('toggle-registration').checked,
+        callsign: document.getElementById('toggle-callsign').checked,
+        type: document.getElementById('toggle-type').checked,
+        altitude: document.getElementById('toggle-altitude').checked,
+    };
+}
+
+function buildLabel(aircraft) {
+    const cfg = labelConfig();
+    const parts = [];
+    if (cfg.registration && aircraft.registration) parts.push(aircraft.registration);
+    if (cfg.callsign && aircraft.flight) parts.push(aircraft.flight);
+    if (cfg.type && aircraft.type) parts.push(aircraft.type);
+    if (cfg.altitude && aircraft.alt_baro !== null && aircraft.alt_baro !== undefined) parts.push(`${aircraft.alt_baro} ft`);
+    return parts.join(' · ');
+}
+
+function updateLabels() {
+    for (const entry of markers) {
+        const label = buildLabel(entry.aircraft);
+        if (label) {
+            if (!entry.marker.getTooltip()) {
+                entry.marker.bindTooltip(label, {
+                    permanent: true,
+                    direction: 'top',
+                    offset: [0, -16],
+                    className: 'aircraft-label'
+                });
+            } else {
+                entry.marker.setTooltipContent(label);
+            }
+            entry.marker.openTooltip();
+        } else if (entry.marker.getTooltip()) {
+            entry.marker.closeTooltip();
+            entry.marker.unbindTooltip();
+        }
+    }
+}
+
 for (const aircraft of aircraftData) {
     const heading = Number.isFinite(aircraft.track) ? aircraft.track : 0;
     const color = altitudeColor(aircraft.alt_baro);
@@ -143,14 +196,20 @@ for (const aircraft of aircraftData) {
             </div>
         </div>
     `);
+    markers.push({ marker, aircraft });
     bounds.push([aircraft.lat, aircraft.lon]);
 }
 
 if (bounds.length === 1) {
     map.setView(bounds[0], 9);
-} else {
+} else if (bounds.length > 1) {
     map.fitBounds(bounds, { padding: [30, 30] });
 }
+
+for (const id of ['toggle-registration', 'toggle-callsign', 'toggle-type', 'toggle-altitude']) {
+    document.getElementById(id).addEventListener('change', updateLabels);
+}
+updateLabels();
 </script>
 {% endif %}
 {% endblock %}
