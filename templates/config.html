@@ -27,6 +27,12 @@
                     <input type="number" name="refresh_interval" value="{{ settings.refresh_interval }}" min="5" max="300">
                 </label>
             </div>
+            <label>GitHub Sponsors URL
+                <input type="url" name="github_sponsors_url" value="{{ settings.github_sponsors_url }}" placeholder="https://github.com/sponsors/yourname">
+            </label>
+            <label>Restart command
+                <input type="text" name="restart_command" value="{{ settings.restart_command }}">
+            </label>
             <label class="checkbox-row"><input type="checkbox" name="enable_auth" {% if config_auth_enabled %}checked{% endif %}> Protect configuration panel</label>
             <div class="two-col">
                 <label>Configuration username
@@ -40,22 +46,39 @@
         </form>
     </div>
 
-    <div class="card">
-        <h2>Application updates</h2>
-        <p class="muted">Use the button below to check and install updates from GitHub.</p>
-        {% if update_status.supported %}
-            <dl class="meta-list">
-                <div><dt>Branch</dt><dd>{{ update_status.branch or '—' }}</dd></div>
-                <div><dt>Current commit</dt><dd>{{ update_status.current_commit or '—' }}</dd></div>
-                <div><dt>Remote commit</dt><dd>{{ update_status.remote_commit or '—' }}</dd></div>
-                <div><dt>Status</dt><dd>{{ update_status.message }}</dd></div>
-            </dl>
-            <form method="post" action="{{ url_for('update_app') }}">
-                <button type="submit" class="btn {% if update_status.update_available %}btn-primary{% else %}btn-secondary{% endif %}">Update from GitHub</button>
-            </form>
-        {% else %}
-            <div class="empty-state">{{ update_status.message }}</div>
-        {% endif %}
+    <div class="stack-col">
+        <div class="card">
+            <h2>Application updates</h2>
+            <p class="muted">Use the button below to check and install updates from GitHub.</p>
+            {% if update_status.supported %}
+                <dl class="meta-list">
+                    <div><dt>Branch</dt><dd>{{ update_status.branch or '—' }}</dd></div>
+                    <div><dt>Current commit</dt><dd>{{ update_status.current_commit or '—' }}</dd></div>
+                    <div><dt>Remote commit</dt><dd>{{ update_status.remote_commit or '—' }}</dd></div>
+                    <div><dt>Status</dt><dd>{{ update_status.message }}</dd></div>
+                </dl>
+                <form method="post" action="{{ url_for('update_app') }}">
+                    <button type="submit" class="btn {% if update_status.update_available %}btn-primary{% else %}btn-secondary{% endif %}">Update from GitHub</button>
+                </form>
+            {% else %}
+                <div class="empty-state">{{ update_status.message }}</div>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h2>Application restart</h2>
+            <p class="muted">Use the restart command below to restart SkyJSON. If you run the app under a supervisor with automatic restart, you can also use self-exit mode.</p>
+            <div class="form-grid compact-gap">
+                <form method="post" action="{{ url_for('restart_app') }}">
+                    <input type="hidden" name="restart_mode" value="command">
+                    <button type="submit" class="btn btn-primary">Restart app</button>
+                </form>
+                <form method="post" action="{{ url_for('restart_app') }}">
+                    <input type="hidden" name="restart_mode" value="self-exit">
+                    <button type="submit" class="btn btn-secondary">Self-exit for supervisor restart</button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

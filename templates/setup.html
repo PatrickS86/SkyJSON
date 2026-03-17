@@ -27,6 +27,12 @@
                 <input type="number" name="refresh_interval" value="15" min="5" max="300">
             </label>
         </div>
+        <label>GitHub Sponsors URL
+            <input type="url" name="github_sponsors_url" placeholder="https://github.com/sponsors/yourname">
+        </label>
+        <label>Restart command
+            <input type="text" name="restart_command" value="{{ default_restart_command }}">
+        </label>
         <label class="checkbox-row"><input type="checkbox" name="enable_auth"> Protect the configuration panel with a username and password</label>
         <div class="two-col">
             <label>Configuration username

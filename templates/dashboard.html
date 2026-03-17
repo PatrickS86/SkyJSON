@@ -18,10 +18,15 @@
             <h2>Live aircraft overview</h2>
             <p class="muted">Source: {{ source_path or 'not configured' }}</p>
         </div>
-        <form method="get" class="search-form">
-            <input type="text" name="q" placeholder="Search hex, callsign, registration or type" value="{{ request.args.get('q', '') }}">
-            <button type="submit" class="btn btn-primary">Search</button>
-        </form>
+        <div class="toolbar-actions">
+            {% if github_sponsors_url %}
+            <a class="btn btn-secondary" href="{{ github_sponsors_url }}" target="_blank" rel="noopener">Support on GitHub</a>
+            {% endif %}
+            <form method="get" class="search-form">
+                <input type="text" name="q" placeholder="Search hex, callsign, registration or type" value="{{ request.args.get('q', '') }}">
+                <button type="submit" class="btn btn-primary">Search</button>
+            </form>
+        </div>
     </div>
 
     {% if error %}
@@ -31,7 +36,7 @@
         <div class="map-shell">
             <div class="map-header">
                 <h3>Aircraft map</h3>
-                <p class="muted small">Interactive map with live aircraft positions, inspired by tar1090.</p>
+                <p class="muted small">Interactive map with live aircraft positions.</p>
             </div>
             <div id="aircraft-map"></div>
         </div>

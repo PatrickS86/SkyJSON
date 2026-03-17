@@ -68,3 +68,10 @@ tr:hover td { background: rgba(255,255,255,.02); }
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #f8fbff; color: #111827; }
 .leaflet-control-zoom a { color: #111827; }
 @media (max-width: 900px) { #aircraft-map { height: 420px; } }
+
+
+select { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel-soft); color: var(--text); }
+.stack-col { display: grid; gap: 18px; }
+.compact-gap { gap: 10px; }
+.toolbar-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+code { background: rgba(255,255,255,.06); padding: 2px 6px; border-radius: 6px; }

@@ -1,7 +1,10 @@
 import json
 import os
+import shlex
 import sqlite3
 import subprocess
+import threading
+import time
 from functools import wraps
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -13,8 +16,9 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / 'config.db'
 DEFAULT_SECRET = 'change-me-skyjson-secret'
-APP_VERSION = '1.2.0'
+APP_VERSION = '1.3.0'
 REQUEST_TIMEOUT = 10
+DEFAULT_RESTART_COMMAND = 'systemctl restart skyjson'
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SKYJSON_SECRET_KEY', DEFAULT_SECRET)
@@ -97,6 +101,10 @@ def config_login_required(fn):
     return wrapper
 
 
+def get_github_sponsors_url() -> str:
+    return (get_setting('github_sponsors_url', '') or '').strip()
+
+
 @app.context_processor
 def inject_globals():
     return {
@@ -104,6 +112,7 @@ def inject_globals():
         'app_version': APP_VERSION,
         'config_auth_enabled': config_auth_enabled(),
         'is_logged_in': is_logged_in(),
+        'github_sponsors_url': get_github_sponsors_url(),
     }
 
 
@@ -224,7 +233,7 @@ def summarize_aircraft(aircraft: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 # -----------------------------
-# Update helpers
+# Update / restart helpers
 # -----------------------------
 def run_cmd(args: List[str]) -> Dict[str, Any]:
     try:
@@ -281,6 +290,25 @@ def get_update_status() -> Dict[str, Any]:
         'remote_commit': remote['stdout'][:7],
         'message': 'A newer version is available on GitHub.' if update_available else 'SkyJSON is up to date.',
     }
+
+
+def get_restart_command() -> str:
+    return (get_setting('restart_command', '') or os.environ.get('SKYJSON_RESTART_COMMAND') or DEFAULT_RESTART_COMMAND).strip()
+
+
+def run_restart_command() -> Dict[str, Any]:
+    command = get_restart_command()
+    if not command:
+        return {'ok': False, 'message': 'No restart command is configured.'}
+
+    result = run_cmd(shlex.split(command))
+    message = result['stderr'] or result['stdout'] or 'No output returned.'
+    return {'ok': result['ok'], 'message': message, 'command': command}
+
+
+def self_exit_for_supervisor() -> None:
+    time.sleep(1.0)
+    os._exit(0)
 
 
 # -----------------------------
@@ -348,6 +376,8 @@ def setup():
         enable_auth = request.form.get('enable_auth') == 'on'
         username = (request.form.get('username') or '').strip()
         password = request.form.get('password') or ''
+        github_sponsors_url = (request.form.get('github_sponsors_url') or '').strip()
+        restart_command = (request.form.get('restart_command') or DEFAULT_RESTART_COMMAND).strip()
 
         if source_type == 'file' and not aircraft_path:
             flash('Please enter a local path to aircraft.json.', 'danger')
@@ -366,6 +396,8 @@ def setup():
         set_setting('aircraft_url', aircraft_url)
         set_setting('rows_per_page', rows_per_page)
         set_setting('refresh_interval', refresh_interval)
+        set_setting('github_sponsors_url', github_sponsors_url)
+        set_setting('restart_command', restart_command)
         set_setting('config_auth_enabled', '1' if enable_auth else '0')
         if enable_auth:
             set_setting('config_username', username)
@@ -374,7 +406,7 @@ def setup():
         flash('SkyJSON has been configured successfully.', 'success')
         return redirect(url_for('index'))
 
-    return render_template('setup.html')
+    return render_template('setup.html', default_restart_command=DEFAULT_RESTART_COMMAND)
 
 
 @app.route('/config/login', methods=['GET', 'POST'])
@@ -424,13 +456,15 @@ def config():
         set_setting('aircraft_url', aircraft_url)
         set_setting('rows_per_page', request.form.get('rows_per_page', '100').strip() or '100')
         set_setting('refresh_interval', request.form.get('refresh_interval', '15').strip() or '15')
+        set_setting('github_sponsors_url', (request.form.get('github_sponsors_url') or '').strip())
+        set_setting('restart_command', (request.form.get('restart_command') or DEFAULT_RESTART_COMMAND).strip())
 
         enable_auth = request.form.get('enable_auth') == 'on'
         set_setting('config_auth_enabled', '1' if enable_auth else '0')
 
         if enable_auth:
             username = (request.form.get('username') or '').strip()
-            password = request.form.get('password') or ''
+            password = (request.form.get('password') or '').strip()
             if username:
                 set_setting('config_username', username)
             if password:
@@ -448,6 +482,8 @@ def config():
         'rows_per_page': get_setting('rows_per_page', '100'),
         'refresh_interval': get_setting('refresh_interval', '15'),
         'config_username': get_setting('config_username', ''),
+        'github_sponsors_url': get_github_sponsors_url(),
+        'restart_command': get_restart_command(),
     }
     return render_template('config.html', update_status=update_status, settings=settings)
 
@@ -465,6 +501,22 @@ def update_app():
         flash('SkyJSON was updated successfully. Restart the application service if needed.', 'success')
     else:
         flash(f"Update failed: {pull['stderr'] or pull['stdout']}", 'danger')
+    return redirect(url_for('config'))
+
+
+@app.route('/config/restart', methods=['POST'])
+@config_login_required
+def restart_app():
+    restart_mode = (request.form.get('restart_mode') or 'command').strip()
+    if restart_mode == 'self-exit':
+        threading.Thread(target=self_exit_for_supervisor, daemon=True).start()
+        return render_template('restart.html')
+
+    result = run_restart_command()
+    if result['ok']:
+        flash(f"Restart command executed: {result['command']}", 'success')
+    else:
+        flash(f"Restart failed: {result['message']}", 'danger')
     return redirect(url_for('config'))
 
 

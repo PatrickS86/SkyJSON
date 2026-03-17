@@ -9,8 +9,10 @@ SkyJSON is a self-hosted Linux web application that reads aircraft data from an 
 - Web-based first-run installation wizard
 - Configure a **local file** or a **remote JSON URL** from the browser
 - Optional password protection for the configuration panel
-- Dashboard with search, stats and automatic refresh
+- Dashboard with search, stats, map view, and automatic refresh
 - Built-in **Update from GitHub** button in the configuration panel
+- Built-in **Restart app** button in the configuration panel
+- Optional **GitHub Sponsors** donation link shown in the app
 - Designed to run on Linux with a simple Python setup
 
 ## Supported sources
@@ -29,110 +31,18 @@ http://192.168.1.50/aircraft.json
 http://readsb.local/aircraft.json
 ```
 
-## Quick start
+## Restart behavior
 
-Clone the repository:
+SkyJSON now supports restarting from the configuration panel.
 
-```bash
-git clone https://github.com/PatrickS86/skyjson.git
-cd skyjson
-```
+You can use either:
 
-Create a virtual environment and install dependencies:
+- a restart command, such as `systemctl restart skyjson`
+- self-exit mode, which works when SkyJSON is managed by a supervisor that automatically restarts the app
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+## GitHub donation link
 
-Run SkyJSON:
-
-```bash
-python3 app.py
-```
-
-Open:
-
-```text
-http://localhost:8000
-```
-
-On first launch, SkyJSON opens the **web installer**. There you can:
-
-1. Set the application title
-2. Choose **Local file** or **Remote URL** as the aircraft data source
-3. Enter the local path or remote URL for `aircraft.json`
-4. Choose the refresh interval and dashboard size
-5. Decide whether the configuration panel should be protected with a username and password
-
-## Updating from GitHub
-
-The configuration page includes an **Update from GitHub** button.
-
-How it works:
-
-- SkyJSON checks whether the app was installed from a Git repository
-- It runs `git fetch origin` to compare your local version with the remote version
-- When an update is available, you can install it from the browser
-- The update action uses `git pull --ff-only`
-
-Requirements for web updates:
-
-- `git` must be installed on the server
-- the application directory must be a cloned Git repository
-- the user running SkyJSON must have write access to the repository folder
-- if you use a service manager, restart the app after updating
-
-## Configuration security
-
-You can keep the dashboard public and only protect `/config`.
-
-If configuration protection is enabled:
-
-- the dashboard remains accessible
-- the configuration page requires a username and password
-- passwords are stored as hashed values in the local SQLite database
-
-## Project structure
-
-```text
-skyjson/
-├── app.py
-├── config.db
-├── requirements.txt
-├── README.md
-├── LICENSE
-├── static/
-│   ├── style.css
-│   └── logo.png
-└── templates/
-    ├── base.html
-    ├── config.html
-    ├── dashboard.html
-    ├── login.html
-    └── setup.html
-```
-
-## Optional systemd service
-
-Example:
-
-```ini
-[Unit]
-Description=SkyJSON
-After=network.target
-
-[Service]
-User=www-data
-WorkingDirectory=/opt/skyjson
-Environment="SKYJSON_PORT=8000"
-ExecStart=/opt/skyjson/.venv/bin/python /opt/skyjson/app.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
+You can set a GitHub Sponsors URL in the installer or configuration panel. When set, a donation link appears in the app navigation and dashboard.
 
 ## License
 
