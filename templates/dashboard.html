@@ -6,35 +6,28 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 {% endblock %}
 {% block content %}
-<div class="hero-panel">
-    <div class="hero-copy">
-        <div class="hero-badge">Live aircraft monitoring</div>
-        <h1>SkyJSON dashboard</h1>
-        <p class="muted">A smoother view of your aircraft feed with altitude-colored markers, fast filters, and live refresh.</p>
+<div class="compact-header">
+    <div>
+        <div class="compact-badge">Live aircraft monitoring</div>
+        <h1>SkyJSON</h1>
     </div>
-    <div class="hero-meta">
-        <div class="hero-meta-item">
-            <span>Source</span>
-            <strong>{{ source_path or 'not configured' }}</strong>
-        </div>
-        <div class="hero-meta-item">
-            <span>Refresh</span>
-            <strong>{{ refresh_interval }} sec</strong>
-        </div>
-    </div>
+    <form method="get" class="search-form compact-search">
+        <input type="text" name="q" placeholder="Search aircraft" value="{{ request.args.get('q', '') }}">
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
 </div>
 
-<div class="grid stats-grid stats-grid-elevated">
+<div class="grid stats-grid compact-stats">
     <div class="card stat-card">
         <div class="label">Aircraft</div>
         <div class="value">{{ stats.total }}</div>
     </div>
     <div class="card stat-card">
-        <div class="label">With Position</div>
+        <div class="label">Visible</div>
         <div class="value">{{ stats.with_position }}</div>
     </div>
     <div class="card stat-card">
-        <div class="label">Avg Altitude</div>
+        <div class="label">Avg Alt</div>
         <div class="value">{{ stats.avg_altitude if stats.avg_altitude is not none else '—' }}</div>
     </div>
     <div class="card stat-card">
@@ -43,87 +36,121 @@
     </div>
 </div>
 
-<div class="card dashboard-shell">
+<div class="card dashboard-shell compact-shell">
     {% if error %}
     <div class="empty-state">{{ error }}</div>
     {% else %}
-        <div class="map-toolbar smooth-toolbar">
+        <div class="map-toolbar compact-toolbar">
             <div class="map-toolbar-title">
-                <h2>Aircraft map</h2>
-                <p class="muted small">Marker colors change with altitude. Toggle which label parts you want to show.</p>
+                <h2>Aircraft overview</h2>
+                <p class="muted small">Toggle which label parts appear on the map.</p>
             </div>
-            <div class="label-toggles">
-                <label><input type="checkbox" id="toggle-registration" checked> registration</label>
+            <div class="label-toggles compact-toggles">
+                <label><input type="checkbox" id="toggle-registration" checked> reg</label>
                 <label><input type="checkbox" id="toggle-callsign" checked> callsign</label>
                 <label><input type="checkbox" id="toggle-type"> type</label>
-                <label><input type="checkbox" id="toggle-altitude"> altitude</label>
+                <label><input type="checkbox" id="toggle-altitude"> alt</label>
             </div>
         </div>
 
-        {% if map_aircraft %}
-        <div class="map-shell map-shell-smooth">
-            <div id="aircraft-map"></div>
-            <div class="legend-row legend-row-smooth">
-                <span><i class="legend-dot alt-low"></i> low</span>
-                <span><i class="legend-dot alt-mid"></i> medium</span>
-                <span><i class="legend-dot alt-high"></i> high</span>
-                <span><i class="legend-dot alt-very-high"></i> very high</span>
-            </div>
-        </div>
-        {% else %}
-        <div class="empty-state">No aircraft positions available for the map.</div>
-        {% endif %}
-
-        <div class="list-toolbar">
-            <div>
-                <h2>Aircraft list</h2>
-                <p class="muted small">Showing {{ aircraft|length }} of {{ total_results }} results.</p>
-            </div>
-            <form method="get" class="search-form search-form-below-map">
-                <input type="text" name="q" placeholder="Search hex, callsign, registration, type or country" value="{{ request.args.get('q', '') }}">
-                <button type="submit" class="btn btn-primary">Search</button>
-            </form>
-        </div>
-
-        <div class="table-wrap table-wrap-smooth">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Hex</th>
-                        <th>Callsign</th>
-                        <th>Flag</th>
-                        <th>Registration</th>
-                        <th>Type</th>
-                        <th>Altitude</th>
-                        <th>Speed</th>
-                        <th>Track</th>
-                        <th>Lat</th>
-                        <th>Lon</th>
-                        <th>Messages</th>
-                    </tr>
-                </thead>
-                <tbody>
-                {% for a in aircraft %}
-                    <tr>
-                        <td>{{ a.hex }}</td>
-                        <td>{{ a.flight or '—' }}</td>
-                        <td><span class="flag-badge" title="{{ a.country }}">{{ a.flag }}</span></td>
-                        <td>{{ a.registration or '—' }}</td>
-                        <td>{{ a.type or '—' }}</td>
-                        <td>{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
-                        <td>{{ a.gs if a.gs is not none else '—' }}</td>
-                        <td>{{ a.track if a.track is not none else '—' }}</td>
-                        <td>{{ a.lat if a.lat is not none else '—' }}</td>
-                        <td>{{ a.lon if a.lon is not none else '—' }}</td>
-                        <td>{{ a.messages if a.messages is not none else '—' }}</td>
-                    </tr>
+        <div class="map-list-layout">
+            <div class="map-column">
+                {% if map_aircraft %}
+                <div class="map-shell map-shell-compact">
+                    <div id="aircraft-map"></div>
+                    <div class="legend-row legend-row-compact">
+                        <span><i class="legend-dot alt-low"></i> low</span>
+                        <span><i class="legend-dot alt-mid"></i> medium</span>
+                        <span><i class="legend-dot alt-high"></i> high</span>
+                        <span><i class="legend-dot alt-very-high"></i> very high</span>
+                    </div>
+                </div>
                 {% else %}
-                    <tr><td colspan="11" class="muted center">No aircraft matched your query.</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
+                <div class="empty-state">No aircraft positions available for the map.</div>
+                {% endif %}
+            </div>
+
+            <aside class="list-column">
+                <div class="list-panel-header">
+                    <div>
+                        <h3>Aircraft list</h3>
+                        <p class="muted small">{{ aircraft|length }} of {{ total_results }} shown</p>
+                    </div>
+                </div>
+
+                <div class="compact-aircraft-list">
+                    {% for a in aircraft %}
+                    <div class="aircraft-item">
+                        <div class="aircraft-item-top">
+                            <div class="aircraft-main">
+                                <span class="flag-badge small-flag" title="{{ a.country }}">{{ a.flag }}</span>
+                                <div>
+                                    <div class="aircraft-title">{{ a.flight or a.registration or a.hex }}</div>
+                                    <div class="aircraft-subtitle">{{ a.registration or '—' }} · {{ a.type or '—' }}</div>
+                                </div>
+                            </div>
+                            <div class="aircraft-alt">{{ a.alt_baro if a.alt_baro is not none else '—' }}</div>
+                        </div>
+                        <div class="aircraft-meta-row">
+                            <span>{{ a.hex }}</span>
+                            <span>{{ a.gs if a.gs is not none else '—' }} kt</span>
+                            <span>{{ a.track if a.track is not none else '—' }}°</span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">No aircraft matched your query.</div>
+                    {% endfor %}
+                </div>
+            </aside>
         </div>
-        <p class="muted small footer-note">Flags are estimated from the registration prefix or ICAO hex range and may not always be exact.</p>
+
+        <div class="table-section">
+            <div class="list-toolbar compact-list-toolbar">
+                <div>
+                    <h2>Detailed table</h2>
+                    <p class="muted small">Full aircraft data in table view.</p>
+                </div>
+            </div>
+            <div class="table-wrap table-wrap-smooth compact-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Hex</th>
+                            <th>Callsign</th>
+                            <th>Flag</th>
+                            <th>Registration</th>
+                            <th>Type</th>
+                            <th>Altitude</th>
+                            <th>Speed</th>
+                            <th>Track</th>
+                            <th>Lat</th>
+                            <th>Lon</th>
+                            <th>Messages</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for a in aircraft %}
+                        <tr>
+                            <td>{{ a.hex }}</td>
+                            <td>{{ a.flight or '—' }}</td>
+                            <td><span class="flag-badge small-flag" title="{{ a.country }}">{{ a.flag }}</span></td>
+                            <td>{{ a.registration or '—' }}</td>
+                            <td>{{ a.type or '—' }}</td>
+                            <td>{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
+                            <td>{{ a.gs if a.gs is not none else '—' }}</td>
+                            <td>{{ a.track if a.track is not none else '—' }}</td>
+                            <td>{{ a.lat if a.lat is not none else '—' }}</td>
+                            <td>{{ a.lon if a.lon is not none else '—' }}</td>
+                            <td>{{ a.messages if a.messages is not none else '—' }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="11" class="muted center">No aircraft matched your query.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="muted small footer-note">Flags are estimated from the registration prefix or ICAO hex range and may not always be exact.</p>
+        </div>
     {% endif %}
 </div>
 
@@ -176,7 +203,7 @@ function updateLabels() {
                 entry.marker.bindTooltip(label, {
                     permanent: true,
                     direction: 'top',
-                    offset: [0, -16],
+                    offset: [0, -14],
                     className: 'aircraft-label'
                 });
             } else {
@@ -196,15 +223,15 @@ for (const aircraft of aircraftData) {
     const label = aircraft.flight || aircraft.hex || 'Aircraft';
     const icon = L.divIcon({
         className: 'plane-marker-wrapper',
-        html: `<div class="plane-marker" style="color:${color}; transform: rotate(${heading}deg)">✈</div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
+        html: `<div class="plane-marker compact-plane" style="color:${color}; transform: rotate(${heading}deg)">✈</div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
         popupAnchor: [0, -14]
     });
 
     const marker = L.marker([aircraft.lat, aircraft.lon], { icon }).addTo(map);
     marker.bindPopup(`
-        <div class="popup-card popup-elevated">
+        <div class="popup-card popup-elevated compact-popup">
             <div class="popup-topline" style="background:${color}"></div>
             <div class="popup-header">
                 <div class="popup-title-group">
@@ -230,7 +257,7 @@ for (const aircraft of aircraftData) {
 if (bounds.length === 1) {
     map.setView(bounds[0], 9);
 } else if (bounds.length > 1) {
-    map.fitBounds(bounds, { padding: [30, 30] });
+    map.fitBounds(bounds, { padding: [24, 24] });
 }
 
 for (const id of ['toggle-registration', 'toggle-callsign', 'toggle-type', 'toggle-altitude']) {

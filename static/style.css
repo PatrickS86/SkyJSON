@@ -362,3 +362,233 @@ select:focus {
     width: 100%;
   }
 }
+
+
+.compact-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 14px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.compact-header h1 {
+  margin: 6px 0 0;
+  font-size: 24px;
+  line-height: 1;
+}
+.compact-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(118, 213, 255, .10);
+  color: #d9f4ff;
+  border: 1px solid rgba(118, 213, 255, .14);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.compact-search input {
+  min-width: 220px;
+}
+.compact-search .btn {
+  min-width: 84px;
+}
+.compact-stats {
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.compact-stats .card {
+  padding: 16px 18px;
+  border-radius: 18px;
+}
+.compact-stats .stat-card .label {
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.compact-stats .stat-card .value {
+  font-size: 24px;
+}
+.compact-shell {
+  padding: 18px;
+  border-radius: 20px;
+}
+.compact-toolbar {
+  margin-bottom: 14px;
+}
+.compact-toolbar h2,
+.compact-list-toolbar h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+.compact-toolbar .small,
+.compact-list-toolbar .small {
+  font-size: 12px;
+}
+.compact-toggles {
+  gap: 8px;
+}
+.compact-toggles label {
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: 10px;
+}
+.map-list-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(300px, .9fr);
+  gap: 14px;
+  align-items: start;
+}
+.map-column, .list-column {
+  min-width: 0;
+}
+.map-shell-compact {
+  border-radius: 18px;
+}
+.map-shell-compact #aircraft-map {
+  height: 500px;
+  border-radius: 18px;
+}
+.legend-row-compact {
+  gap: 10px;
+  font-size: 12px;
+  margin-top: 8px;
+}
+.list-column {
+  border: 1px solid rgba(255,255,255,.05);
+  background: rgba(255,255,255,.02);
+  border-radius: 18px;
+  padding: 12px;
+  min-height: 100%;
+}
+.list-panel-header h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+.compact-aircraft-list {
+  display: grid;
+  gap: 8px;
+  max-height: 540px;
+  overflow: auto;
+  padding-right: 2px;
+}
+.aircraft-item {
+  border: 1px solid rgba(255,255,255,.05);
+  background: rgba(255,255,255,.025);
+  border-radius: 14px;
+  padding: 10px 11px;
+  transition: transform .15s ease, background .15s ease, border-color .15s ease;
+}
+.aircraft-item:hover {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,.04);
+  border-color: rgba(118,213,255,.15);
+}
+.aircraft-item-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: start;
+}
+.aircraft-main {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
+}
+.aircraft-title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.aircraft-subtitle {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.25;
+  margin-top: 2px;
+}
+.aircraft-alt {
+  font-size: 12px;
+  font-weight: 700;
+  color: #eaf4ff;
+  white-space: nowrap;
+}
+.aircraft-meta-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.small-flag {
+  width: 28px;
+  height: 28px;
+  font-size: 15px;
+}
+.compact-table-wrap {
+  border-radius: 18px;
+}
+.compact-table-wrap table {
+  min-width: 920px;
+}
+.compact-table-wrap th,
+.compact-table-wrap td {
+  padding: 9px 11px;
+  font-size: 12px;
+}
+.compact-plane {
+  font-size: 17px;
+}
+.compact-popup {
+  min-width: 230px;
+}
+.compact-popup .popup-title {
+  font-size: 16px;
+}
+.compact-popup .popup-subtitle {
+  font-size: 12px;
+}
+.compact-popup .popup-grid div {
+  padding: 9px 10px;
+}
+.compact-popup .popup-grid strong {
+  font-size: 13px;
+}
+.btn {
+  padding: 10px 13px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+input, select {
+  padding: 10px 12px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+@media (max-width: 980px) {
+  .map-list-layout {
+    grid-template-columns: 1fr;
+  }
+  .list-column {
+    order: 2;
+  }
+  .map-column {
+    order: 1;
+  }
+  .compact-aircraft-list {
+    max-height: 360px;
+  }
+}
+@media (max-width: 640px) {
+  .compact-header {
+    align-items: stretch;
+  }
+  .compact-search {
+    width: 100%;
+  }
+  .compact-search input {
+    min-width: 0;
+    width: 100%;
+  }
+}
