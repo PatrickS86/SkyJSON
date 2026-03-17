@@ -1,51 +1,74 @@
 
 {% extends 'base.html' %}
 {% block content %}
-<div class="config-page">
-    <div class="config-main card">
-        <div class="section-head">
+<div class="config-redesign">
+    <section class="config-panel card">
+        <div class="config-hero">
             <div>
+                <div class="config-kicker">Settings</div>
                 <h1>Configuration</h1>
-                <p class="muted">Update the data source, refresh settings and access protection.</p>
+                <p class="muted">Manage the aircraft source and access protection. Application behavior stays the same; only the layout has been redesigned.</p>
+            </div>
+            <div class="config-chip-stack">
+                <div class="config-chip">Refresh fixed: 1 sec</div>
+                <div class="config-chip">All aircraft visible</div>
             </div>
         </div>
 
-        <form method="post" class="form-grid polished-form">
-            <div class="form-section">
-                <h3>Data source</h3>
-                <div class="two-col">
-                    <label>Aircraft data source
+        <form method="post" class="config-form-redesign">
+            <div class="config-block">
+                <div class="block-head">
+                    <h3>Aircraft source</h3>
+                    <p class="muted">Choose where SkyJSON reads aircraft data from.</p>
+                </div>
+
+                <div class="source-grid">
+                    <label class="field-card">
+                        <span>Source type</span>
                         <select name="source_type">
                             <option value="file" {% if settings.source_type == 'file' %}selected{% endif %}>Local file</option>
                             <option value="url" {% if settings.source_type == 'url' %}selected{% endif %}>Remote URL</option>
                         </select>
                     </label>
-                    <label>Refresh interval (seconds)
-                        <input type="number" name="refresh_interval" value="{{ settings.refresh_interval }}" min="5" max="300">
-                    </label>
+
+                    <div class="info-note">
+                        <strong>Note</strong>
+                        <p>The dashboard now refreshes every second and always shows all received aircraft.</p>
+                    </div>
                 </div>
-                <label>Local path to aircraft.json
+
+                <label class="field-card">
+                    <span>Local path to aircraft.json</span>
                     <input type="text" name="aircraft_path" value="{{ settings.aircraft_path }}" placeholder="/run/readsb/aircraft.json">
                 </label>
-                <label>Remote URL to aircraft.json
+
+                <label class="field-card">
+                    <span>Remote URL to aircraft.json</span>
                     <input type="url" name="aircraft_url" value="{{ settings.aircraft_url }}" placeholder="http://192.168.1.50/aircraft.json">
-                </label>
-                <label>Rows shown on dashboard
-                    <input type="number" name="rows_per_page" value="{{ settings.rows_per_page }}" min="10" max="5000">
                 </label>
             </div>
 
-            <div class="form-section">
-                <h3>Access protection</h3>
-                <label class="checkbox-row">
+            <div class="config-block">
+                <div class="block-head">
+                    <h3>Access protection</h3>
+                    <p class="muted">Protect the configuration page with a username and password.</p>
+                </div>
+
+                <label class="toggle-card">
                     <input type="checkbox" name="enable_auth" {% if config_auth_enabled %}checked{% endif %}>
-                    Protect configuration panel
+                    <div>
+                        <strong>Protect configuration panel</strong>
+                        <div class="muted">Require a login before changing settings.</div>
+                    </div>
                 </label>
-                <div class="two-col">
-                    <label>Configuration username
+
+                <div class="source-grid">
+                    <label class="field-card">
+                        <span>Configuration username</span>
                         <input type="text" name="username" value="{{ settings.config_username }}">
                     </label>
-                    <label>New password
+                    <label class="field-card">
+                        <span>New password</span>
                         <input type="password" name="password" placeholder="Leave empty to keep current password">
                     </label>
                 </div>
@@ -55,10 +78,10 @@
                 <button type="submit" class="btn btn-primary">Save configuration</button>
             </div>
         </form>
-    </div>
+    </section>
 
-    <div class="config-side">
-        <div class="card side-card">
+    <aside class="config-sidebar-redesign">
+        <div class="card side-card side-card-accent">
             <h2>Developer support</h2>
             <p class="muted">This is the only sponsor link shown in the app.</p>
             <a class="btn btn-secondary" href="{{ github_donation_url }}" target="_blank" rel="noopener">Sponsor PatrickS86 on GitHub</a>
@@ -91,6 +114,6 @@
                 <button type="submit" class="btn btn-primary">Restart app</button>
             </form>
         </div>
-    </div>
+    </aside>
 </div>
 {% endblock %}

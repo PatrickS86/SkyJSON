@@ -395,8 +395,6 @@ def index():
     aircraft = data['aircraft']
     stats = summarize_aircraft(aircraft)
     query = (request.args.get('q') or '').strip().lower()
-    limit = safe_int(get_setting('rows_per_page', '100')) or 100
-
     if query:
         aircraft = [
             a for a in aircraft
@@ -429,13 +427,13 @@ def index():
 
     return render_template(
         'dashboard.html',
-        aircraft=aircraft[:limit],
+        aircraft=aircraft,
         map_aircraft=map_aircraft,
         total_results=len(aircraft),
         stats=stats,
         error=data['error'],
         query=query,
-        refresh_interval=safe_int(get_setting('refresh_interval', '15')) or 15,
+        refresh_interval=1,
         source_path=data.get('source_label', 'not configured'),
     )
 
@@ -449,8 +447,6 @@ def setup():
         source_type = normalize_source_type(request.form.get('source_type'))
         aircraft_path = (request.form.get('aircraft_path') or '').strip()
         aircraft_url = (request.form.get('aircraft_url') or '').strip()
-        rows_per_page = request.form.get('rows_per_page', '100').strip() or '100'
-        refresh_interval = request.form.get('refresh_interval', '15').strip() or '15'
         enable_auth = request.form.get('enable_auth') == 'on'
         username = (request.form.get('username') or '').strip()
         password = request.form.get('password') or ''
@@ -468,8 +464,6 @@ def setup():
         set_setting('source_type', source_type)
         set_setting('aircraft_path', aircraft_path)
         set_setting('aircraft_url', aircraft_url)
-        set_setting('rows_per_page', rows_per_page)
-        set_setting('refresh_interval', refresh_interval)
         set_setting('config_auth_enabled', '1' if enable_auth else '0')
         if enable_auth:
             set_setting('config_username', username)
@@ -525,8 +519,6 @@ def config():
         set_setting('source_type', source_type)
         set_setting('aircraft_path', aircraft_path)
         set_setting('aircraft_url', aircraft_url)
-        set_setting('rows_per_page', request.form.get('rows_per_page', '100').strip() or '100')
-        set_setting('refresh_interval', request.form.get('refresh_interval', '15').strip() or '15')
 
         enable_auth = request.form.get('enable_auth') == 'on'
         set_setting('config_auth_enabled', '1' if enable_auth else '0')
@@ -547,8 +539,6 @@ def config():
         'source_type': source_settings['source_type'],
         'aircraft_path': source_settings['aircraft_path'],
         'aircraft_url': source_settings['aircraft_url'],
-        'rows_per_page': get_setting('rows_per_page', '100'),
-        'refresh_interval': get_setting('refresh_interval', '15'),
         'config_username': get_setting('config_username', ''),
     }
     return render_template('config.html', update_status=update_status, settings=settings)
