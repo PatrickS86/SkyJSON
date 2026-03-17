@@ -19,7 +19,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / 'config.db'
 DEFAULT_SECRET = 'change-me-skyjson-secret'
-APP_VERSION = '1.7.2'
+APP_VERSION = '1.7.3'
 REQUEST_TIMEOUT = 10
 GITHUB_SPONSOR_URL = 'https://github.com/sponsors/PatrickS86'
 
@@ -449,6 +449,51 @@ def index():
         source_path=data.get('source_label', 'not configured'),
     )
 
+
+
+
+@app.route('/api/aircraft')
+@require_installation
+def api_aircraft():
+    data = load_aircraft()
+    aircraft = data['aircraft']
+    query = (request.args.get('q') or '').strip().lower()
+
+    if query:
+        aircraft = [
+            a for a in aircraft
+            if query in (a['hex'] or '').lower()
+            or query in (a['flight'] or '').lower()
+            or query in (a['registration'] or '').lower()
+            or query in (a['type'] or '').lower()
+            or query in (a['country'] or '').lower()
+            or query in (a['signal_source'] or '').lower()
+        ]
+
+    return {
+        'error': data.get('error'),
+        'stats': summarize_aircraft(aircraft),
+        'total_results': len(aircraft),
+        'aircraft': aircraft,
+        'map_aircraft': [
+            {
+                'hex': a['hex'],
+                'flight': a['flight'],
+                'registration': a['registration'],
+                'type': a['type'],
+                'signal_source': a['signal_source'],
+                'alt_baro': a['alt_baro'],
+                'gs': a['gs'],
+                'track': a['track'],
+                'lat': a['lat'],
+                'lon': a['lon'],
+                'country': a['country'],
+                'flag': a['flag'],
+            }
+            for a in aircraft
+            if a['lat'] is not None and a['lon'] is not None
+        ]
+    }
 
 @app.route('/setup', methods=['GET', 'POST'])
 def setup():
