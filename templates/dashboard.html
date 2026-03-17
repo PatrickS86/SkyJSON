@@ -6,33 +6,50 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 {% endblock %}
 {% block content %}
-<div class="grid stats-grid">
-    <div class="card stat-card"><div class="label">Aircraft</div><div class="value">{{ stats.total }}</div></div>
-    <div class="card stat-card"><div class="label">With Position</div><div class="value">{{ stats.with_position }}</div></div>
-    <div class="card stat-card"><div class="label">Avg Altitude</div><div class="value">{{ stats.avg_altitude if stats.avg_altitude is not none else '—' }}</div></div>
-    <div class="card stat-card"><div class="label">Avg Speed</div><div class="value">{{ stats.avg_speed if stats.avg_speed is not none else '—' }}</div></div>
-</div>
-
-<div class="card">
-    <div class="toolbar">
-        <div>
-            <h2>Live aircraft overview</h2>
-            <p class="muted">Source: {{ source_path or 'not configured' }}</p>
+<div class="hero-panel">
+    <div class="hero-copy">
+        <div class="hero-badge">Live aircraft monitoring</div>
+        <h1>SkyJSON dashboard</h1>
+        <p class="muted">A smoother view of your aircraft feed with altitude-colored markers, fast filters, and live refresh.</p>
+    </div>
+    <div class="hero-meta">
+        <div class="hero-meta-item">
+            <span>Source</span>
+            <strong>{{ source_path or 'not configured' }}</strong>
         </div>
-        <div class="toolbar-actions">
-            <form method="get" class="search-form">
-                <input type="text" name="q" placeholder="Search hex, callsign, registration, type or country" value="{{ request.args.get('q', '') }}">
-                <button type="submit" class="btn btn-primary">Search</button>
-            </form>
+        <div class="hero-meta-item">
+            <span>Refresh</span>
+            <strong>{{ refresh_interval }} sec</strong>
         </div>
     </div>
+</div>
 
+<div class="grid stats-grid stats-grid-elevated">
+    <div class="card stat-card">
+        <div class="label">Aircraft</div>
+        <div class="value">{{ stats.total }}</div>
+    </div>
+    <div class="card stat-card">
+        <div class="label">With Position</div>
+        <div class="value">{{ stats.with_position }}</div>
+    </div>
+    <div class="card stat-card">
+        <div class="label">Avg Altitude</div>
+        <div class="value">{{ stats.avg_altitude if stats.avg_altitude is not none else '—' }}</div>
+    </div>
+    <div class="card stat-card">
+        <div class="label">Avg Speed</div>
+        <div class="value">{{ stats.avg_speed if stats.avg_speed is not none else '—' }}</div>
+    </div>
+</div>
+
+<div class="card dashboard-shell">
     {% if error %}
     <div class="empty-state">{{ error }}</div>
     {% else %}
-        <div class="map-toolbar">
+        <div class="map-toolbar smooth-toolbar">
             <div class="map-toolbar-title">
-                <h3>Aircraft map</h3>
+                <h2>Aircraft map</h2>
                 <p class="muted small">Marker colors change with altitude. Toggle which label parts you want to show.</p>
             </div>
             <div class="label-toggles">
@@ -44,9 +61,9 @@
         </div>
 
         {% if map_aircraft %}
-        <div class="map-shell">
+        <div class="map-shell map-shell-smooth">
             <div id="aircraft-map"></div>
-            <div class="legend-row">
+            <div class="legend-row legend-row-smooth">
                 <span><i class="legend-dot alt-low"></i> low</span>
                 <span><i class="legend-dot alt-mid"></i> medium</span>
                 <span><i class="legend-dot alt-high"></i> high</span>
@@ -57,7 +74,18 @@
         <div class="empty-state">No aircraft positions available for the map.</div>
         {% endif %}
 
-        <div class="table-wrap">
+        <div class="list-toolbar">
+            <div>
+                <h2>Aircraft list</h2>
+                <p class="muted small">Showing {{ aircraft|length }} of {{ total_results }} results.</p>
+            </div>
+            <form method="get" class="search-form search-form-below-map">
+                <input type="text" name="q" placeholder="Search hex, callsign, registration, type or country" value="{{ request.args.get('q', '') }}">
+                <button type="submit" class="btn btn-primary">Search</button>
+            </form>
+        </div>
+
+        <div class="table-wrap table-wrap-smooth">
             <table>
                 <thead>
                     <tr>
@@ -95,8 +123,7 @@
                 </tbody>
             </table>
         </div>
-        <p class="muted small">Showing {{ aircraft|length }} of {{ total_results }} results. Auto-refresh every {{ refresh_interval }} seconds.</p>
-        <p class="muted small">Flags are estimated from the registration prefix or ICAO hex range and may not always be exact.</p>
+        <p class="muted small footer-note">Flags are estimated from the registration prefix or ICAO hex range and may not always be exact.</p>
     {% endif %}
 </div>
 
