@@ -570,3 +570,11 @@ input:focus, select:focus {
 .leaflet-tooltip.aircraft-label:before {
   display: none !important;
 }
+
+/* Darker label text while keeping transparency */
+.aircraft-label,
+.leaflet-tooltip.aircraft-label {
+  color: rgba(20, 28, 40, 0.9) !important; /* dark text */
+  background: rgba(255,255,255,0.06) !important; /* subtle light bg for contrast */
+  border: 1px solid rgba(0,0,0,0.06) !important;
+}
