@@ -19,7 +19,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / 'config.db'
 DEFAULT_SECRET = 'change-me-skyjson-secret'
-APP_VERSION = '1.7.3'
+APP_VERSION = '1.8.0'
 REQUEST_TIMEOUT = 10
 GITHUB_SPONSOR_URL = 'https://github.com/sponsors/PatrickS86'
 
@@ -64,6 +64,21 @@ def set_setting(key: str, value: str) -> None:
 init_db()
 
 
+def read_version_from_path(path: Path) -> Optional[str]:
+    if not path.exists():
+        return None
+    try:
+        content = path.read_text(encoding='utf-8')
+    except Exception:
+        return None
+    match = re.search(r"APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]", content)
+    return match.group(1) if match else None
+
+
+def get_local_file_version() -> str:
+    return read_version_from_path(BASE_DIR / 'app.py') or APP_VERSION
+
+
 def is_installed() -> bool:
     return get_setting('installed', '0') == '1'
 
@@ -100,22 +115,6 @@ def get_github_donation_url() -> str:
     return GITHUB_SPONSOR_URL
 
 
-def read_version_from_file(ref: str) -> Optional[str]:
-    path = BASE_DIR / ref
-    if not path.exists():
-        return None
-    try:
-        contents = path.read_text(encoding='utf-8')
-    except Exception:
-        return None
-    match = re.search(r"APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]", contents)
-    return match.group(1) if match else None
-
-
-def get_local_file_version() -> str:
-    return read_version_from_file('app.py') or APP_VERSION
-
-
 @app.context_processor
 def inject_globals():
     return {
@@ -149,12 +148,10 @@ def get_source_settings() -> Dict[str, str]:
     source_type = normalize_source_type(get_setting('source_type', 'file'))
     aircraft_path = get_setting('aircraft_path', '') or ''
     aircraft_url = get_setting('aircraft_url', '') or ''
-    source_value = aircraft_url if source_type == 'url' else aircraft_path
     return {
         'source_type': source_type,
         'aircraft_path': aircraft_path,
         'aircraft_url': aircraft_url,
-        'source_value': source_value,
     }
 
 
@@ -319,7 +316,7 @@ def compare_versions(current: Optional[str], remote: Optional[str]) -> Optional[
     return 'patch'
 
 
-def read_remote_app_version(branch_name: str, remote_ref: str) -> Optional[str]:
+def read_remote_app_version(remote_ref: str) -> Optional[str]:
     show = run_cmd(['git', 'show', f'{remote_ref}:app.py'])
     if not show['ok'] or not show['stdout']:
         return None
@@ -328,11 +325,13 @@ def read_remote_app_version(branch_name: str, remote_ref: str) -> Optional[str]:
 
 
 def get_update_status() -> Dict[str, Any]:
+    current_version = get_local_file_version()
+
     if not (BASE_DIR / '.git').exists():
         return {
             'supported': False,
             'message': 'Updates require SkyJSON to be installed from a Git repository.',
-            'current_version': get_local_file_version(),
+            'current_version': current_version,
             'remote_version': None,
             'update_kind': None,
         }
@@ -343,41 +342,40 @@ def get_update_status() -> Dict[str, Any]:
             'supported': True,
             'update_available': None,
             'message': f"Git fetch failed: {fetch['stderr'] or fetch['stdout']}",
-            'current_version': get_local_file_version(),
+            'current_version': current_version,
             'remote_version': None,
             'update_kind': None,
         }
 
     branch = run_cmd(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
-    current = run_cmd(['git', 'rev-parse', 'HEAD'])
+    current_commit = run_cmd(['git', 'rev-parse', 'HEAD'])
     upstream = run_cmd(['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
 
-    if not (branch['ok'] and current['ok'] and upstream['ok']):
+    if not (branch['ok'] and current_commit['ok'] and upstream['ok']):
         return {
             'supported': True,
             'update_available': None,
             'message': 'Unable to determine Git update status for this installation.',
-            'current_version': get_local_file_version(),
+            'current_version': current_version,
             'remote_version': None,
             'update_kind': None,
         }
 
     remote_ref = upstream['stdout']
-    remote = run_cmd(['git', 'rev-parse', remote_ref])
-    if not remote['ok']:
+    remote_commit = run_cmd(['git', 'rev-parse', remote_ref])
+    if not remote_commit['ok']:
         return {
             'supported': True,
             'update_available': None,
             'message': 'Unable to determine remote commit for the tracked branch.',
-            'current_version': get_local_file_version(),
+            'current_version': current_version,
             'remote_version': None,
             'update_kind': None,
         }
 
-    local_version = get_local_file_version()
-    remote_version = read_remote_app_version(branch['stdout'], remote_ref) or local_version
-    update_available = current['stdout'] != remote['stdout']
-    update_kind = compare_versions(local_version, remote_version)
+    remote_version = read_remote_app_version(remote_ref) or current_version
+    update_available = current_commit['stdout'] != remote_commit['stdout']
+    update_kind = compare_versions(current_version, remote_version)
 
     if update_available and update_kind:
         message = f'A {update_kind} update is available on GitHub.'
@@ -390,9 +388,9 @@ def get_update_status() -> Dict[str, Any]:
         'supported': True,
         'update_available': update_available,
         'branch': branch['stdout'],
-        'current_commit': current['stdout'][:7],
-        'remote_commit': remote['stdout'][:7],
-        'current_version': get_local_file_version(),
+        'current_commit': current_commit['stdout'][:7],
+        'remote_commit': remote_commit['stdout'][:7],
+        'current_version': current_version,
         'remote_version': remote_version,
         'update_kind': update_kind,
         'message': message,
@@ -467,8 +465,6 @@ def index():
     )
 
 
-
-
 @app.route('/api/aircraft')
 @require_installation
 def api_aircraft():
@@ -511,6 +507,7 @@ def api_aircraft():
             if a['lat'] is not None and a['lon'] is not None
         ]
     }
+
 
 @app.route('/setup', methods=['GET', 'POST'])
 def setup():
@@ -642,7 +639,7 @@ def restart_app():
 
 @app.route('/health')
 def health():
-    return {'status': 'ok', 'app': 'SkyJSON', 'version': APP_VERSION}
+    return {'status': 'ok', 'app': 'SkyJSON', 'version': get_local_file_version()}
 
 
 if __name__ == '__main__':

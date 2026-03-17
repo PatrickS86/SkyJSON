@@ -5,87 +5,103 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 {% endblock %}
 {% block content %}
-<div class="fullscreen-toolbar">
-    <div>
-        <h1>SkyJSON</h1>
-    </div>
-    <div class="toolbar-right">
-        <div class="label-toggles compact-toggles">
-            <label><input type="checkbox" id="toggle-registration" checked> reg</label>
-            <label><input type="checkbox" id="toggle-callsign" checked> callsign</label>
-            <label><input type="checkbox" id="toggle-type"> type</label>
-            <label><input type="checkbox" id="toggle-altitude"> alt</label>
+<div class="dashboard-shell">
+    <div class="dashboard-topbar">
+        <div class="dashboard-title">
+            <h1>SkyJSON</h1>
+            <p class="muted">Real-time aircraft view with live map updates.</p>
         </div>
-        <form method="get" class="search-form compact-search" id="search-form">
-            <input type="text" name="q" id="search-input" placeholder="Search aircraft, type, source" value="{{ request.args.get('q', '') }}">
-            <button type="submit" class="btn btn-primary">Search</button>
-        </form>
+
+        <div class="dashboard-controls">
+            <div class="label-toggles">
+                <label><input type="checkbox" id="toggle-registration" checked> reg</label>
+                <label><input type="checkbox" id="toggle-callsign" checked> callsign</label>
+                <label><input type="checkbox" id="toggle-type"> type</label>
+                <label><input type="checkbox" id="toggle-altitude"> alt</label>
+            </div>
+
+            <form method="get" class="search-shell" id="search-form">
+                <input type="text" name="q" id="search-input" placeholder="Search aircraft, type, source" value="{{ request.args.get('q', '') }}">
+                <button type="submit" class="btn btn-primary">Search</button>
+            </form>
+        </div>
     </div>
-</div>
 
-<div class="grid stats-grid compact-stats">
-    <div class="card stat-card"><div class="label">Aircraft</div><div class="value" id="stat-total">{{ stats.total }}</div></div>
-    <div class="card stat-card"><div class="label">Visible</div><div class="value" id="stat-visible">{{ stats.with_position }}</div></div>
-    <div class="card stat-card"><div class="label">Avg Alt</div><div class="value" id="stat-alt">{{ stats.avg_altitude if stats.avg_altitude is not none else '—' }}</div></div>
-    <div class="card stat-card"><div class="label">Avg Speed</div><div class="value" id="stat-speed">{{ stats.avg_speed if stats.avg_speed is not none else '—' }}</div></div>
-</div>
+    <div class="stats-band">
+        <div class="stat-pill">
+            <span>Aircraft</span>
+            <strong id="stat-total">{{ stats.total }}</strong>
+        </div>
+        <div class="stat-pill">
+            <span>Visible</span>
+            <strong id="stat-visible">{{ stats.with_position }}</strong>
+        </div>
+        <div class="stat-pill">
+            <span>Avg Alt</span>
+            <strong id="stat-alt">{{ stats.avg_altitude if stats.avg_altitude is not none else '—' }}</strong>
+        </div>
+        <div class="stat-pill">
+            <span>Avg Speed</span>
+            <strong id="stat-speed">{{ stats.avg_speed if stats.avg_speed is not none else '—' }}</strong>
+        </div>
+    </div>
 
-<div class="fullscreen-shell card">
     {% if error %}
     <div class="empty-state" id="error-box">{{ error }}</div>
     {% else %}
     <div class="empty-state" id="error-box" hidden></div>
     {% endif %}
-    <div class="map-sidebar-layout">
-        <section class="map-pane">
-            <div class="map-shell map-shell-fullscreen">
+
+    <div class="dashboard-main card">
+        <section class="map-panel">
+            <div class="map-frame">
                 <div id="aircraft-map"></div>
-                <div class="legend-row legend-row-compact">
-                    <span><i class="legend-dot alt-low"></i> low</span>
-                    <span><i class="legend-dot alt-mid"></i> medium</span>
-                    <span><i class="legend-dot alt-high"></i> high</span>
-                    <span><i class="legend-dot alt-very-high"></i> very high</span>
-                </div>
+            </div>
+            <div class="legend-row">
+                <span><i class="legend-dot alt-low"></i> low</span>
+                <span><i class="legend-dot alt-mid"></i> medium</span>
+                <span><i class="legend-dot alt-high"></i> high</span>
+                <span><i class="legend-dot alt-very-high"></i> very high</span>
             </div>
         </section>
 
-        <aside class="sidebar-pane">
-            <div class="sidebar-header">
+        <aside class="list-panel">
+            <div class="list-panel-head">
                 <div>
                     <h2>Received aircraft</h2>
                     <p class="muted small" id="results-note">All received aircraft are shown</p>
                 </div>
             </div>
 
-            <div class="sidebar-table-wrap">
-                <table class="sidebar-table sidebar-table-fit">
+            <div class="list-table-wrap">
+                <table class="list-table">
                     <thead>
                         <tr>
                             <th class="sortable active" data-sort="flight">Flight</th>
                             <th class="sortable" data-sort="registration">Reg</th>
                             <th class="sortable" data-sort="type">Type</th>
                             <th class="sortable" data-sort="signal_source">Src</th>
-                            <th class="sortable" data-sort="alt_baro">Alt</th>
-                            <th class="sortable" data-sort="gs">Spd</th>
+                            <th class="sortable number" data-sort="alt_baro">Alt</th>
+                            <th class="sortable number" data-sort="gs">Spd</th>
                         </tr>
                     </thead>
                     <tbody id="sidebar-body">
                     {% for a in aircraft %}
-                        <tr class="sidebar-aircraft-row" data-hex="{{ a.hex }}">
+                        <tr class="list-row" data-hex="{{ a.hex }}">
                             <td>
-                                <div class="sidebar-flight-cell fit-flight-cell">
+                                <div class="flight-cell">
                                     <span class="flag-badge small-flag" title="{{ a.country }}">{{ a.flag }}</span>
-                                    <div class="fit-flight-text">
-                                        <div class="sidebar-flight">{{ a.flight or a.hex }}</div>
-                                        <div class="sidebar-hex">{{ a.hex }}</div>
+                                    <div class="flight-copy">
+                                        <div class="flight-name">{{ a.flight or a.hex }}</div>
+                                        <div class="flight-hex">{{ a.hex }}</div>
                                     </div>
                                 </div>
                             </td>
                             <td>{{ a.registration or '—' }}</td>
                             <td>{{ a.type or '—' }}</td>
                             <td><span class="source-badge source-{{ a.signal_source|lower|replace('-', '')|replace(' ', '') }}">{{ a.signal_source }}</span></td>
-                            <td>{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
-                            <td>{{ a.gs if a.gs is not none else '—' }}</td>
+                            <td class="number">{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
+                            <td class="number">{{ a.gs if a.gs is not none else '—' }}</td>
                         </tr>
                     {% else %}
                         <tr><td colspan="6" class="muted center">No aircraft matched your query.</td></tr>
@@ -99,6 +115,7 @@
 
 <script>
 const initialMapAircraft = {{ map_aircraft | tojson }};
+const initialAircraft = {{ aircraft | tojson }};
 const searchInput = document.getElementById('search-input');
 const errorBox = document.getElementById('error-box');
 const sidebarBody = document.getElementById('sidebar-body');
@@ -113,8 +130,16 @@ function altitudeColor(altitude) {
     return '#8b5cf6';
 }
 
+const map = L.map('aircraft-map', { zoomControl: true, preferCanvas: true });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
 
-let currentAircraft = {{ aircraft | tojson }};
+const markerLayer = L.layerGroup().addTo(map);
+let firstFitDone = false;
+let currentMapAircraft = initialMapAircraft;
+let currentAircraft = initialAircraft;
 let sortState = { key: 'flight', dir: 'asc' };
 
 function compareValues(a, b, key) {
@@ -139,34 +164,11 @@ function sortAircraft(list) {
 }
 
 function updateSortHeaders() {
-    document.querySelectorAll('.sidebar-table thead th.sortable').forEach(th => {
+    document.querySelectorAll('.list-table thead th.sortable').forEach(th => {
         th.classList.toggle('active', th.dataset.sort === sortState.key);
         th.classList.toggle('desc', th.dataset.sort === sortState.key && sortState.dir === 'desc');
     });
 }
-
-function focusAircraftOnMap(hex) {
-    const entry = currentMapAircraft.find(a => a.hex === hex);
-    if (!entry || entry.lat === null || entry.lon === null) return;
-    let foundMarker = null;
-    markerLayer.eachLayer(layer => {
-        if (layer.aircraftHex === hex) foundMarker = layer;
-    });
-    if (foundMarker) {
-        map.setView([entry.lat, entry.lon], Math.max(map.getZoom(), 12), { animate: true });
-        foundMarker.openPopup();
-    }
-}
-
-const map = L.map('aircraft-map', { zoomControl: true, preferCanvas: true });
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
-
-const markerLayer = L.layerGroup().addTo(map);
-let firstFitDone = false;
-let currentMapAircraft = initialMapAircraft;
 
 function labelConfig() {
     return {
@@ -187,6 +189,19 @@ function buildLabel(aircraft) {
     return parts.join(' · ');
 }
 
+function focusAircraftOnMap(hex) {
+    const entry = currentMapAircraft.find(a => a.hex === hex);
+    if (!entry || entry.lat === null || entry.lon === null) return;
+    let foundMarker = null;
+    markerLayer.eachLayer(layer => {
+        if (layer.aircraftHex === hex) foundMarker = layer;
+    });
+    if (foundMarker) {
+        map.setView([entry.lat, entry.lon], Math.max(map.getZoom(), 12), { animate: true });
+        foundMarker.openPopup();
+    }
+}
+
 function renderMap(aircraftList, refit=false) {
     currentMapAircraft = aircraftList;
     markerLayer.clearLayers();
@@ -198,13 +213,15 @@ function renderMap(aircraftList, refit=false) {
         const label = aircraft.flight || aircraft.hex || 'Aircraft';
         const icon = L.divIcon({
             className: 'plane-marker-wrapper',
-            html: `<div class="plane-marker compact-plane" style="color:${color}; transform: rotate(${heading - 90}deg)">✈</div>`,
-            iconSize: [22, 22],
-            iconAnchor: [11, 11],
+            html: `<div class="plane-marker" style="color:${color}; transform: rotate(${heading - 90}deg)">✈</div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
             popupAnchor: [0, -14]
         });
 
         const marker = L.marker([aircraft.lat, aircraft.lon], { icon }).addTo(markerLayer);
+        marker.aircraftHex = aircraft.hex;
+
         const tooltipLabel = buildLabel(aircraft);
         if (tooltipLabel) {
             marker.bindTooltip(tooltipLabel, {
@@ -215,9 +232,8 @@ function renderMap(aircraftList, refit=false) {
             });
         }
 
-        marker.aircraftHex = aircraft.hex;
         marker.bindPopup(`
-            <div class="popup-card popup-elevated compact-popup">
+            <div class="popup-card popup-elevated">
                 <div class="popup-topline" style="background:${color}"></div>
                 <div class="popup-header">
                     <div class="popup-title-group">
@@ -243,7 +259,7 @@ function renderMap(aircraftList, refit=false) {
         map.setView(bounds[0], 9);
         firstFitDone = true;
     } else if ((refit || !firstFitDone) && bounds.length > 1) {
-        map.fitBounds(bounds, { padding: [18, 18] });
+        map.fitBounds(bounds, { padding: [20, 20] });
         firstFitDone = true;
     }
 }
@@ -256,26 +272,28 @@ function renderSidebar(aircraft) {
         resultsNote.textContent = '0 aircraft shown';
         return;
     }
+
     sidebarBody.innerHTML = sortedAircraft.map(a => `
-        <tr class="sidebar-aircraft-row" data-hex="${a.hex || ''}">
+        <tr class="list-row" data-hex="${a.hex || ''}">
             <td>
-                <div class="sidebar-flight-cell fit-flight-cell">
+                <div class="flight-cell">
                     <span class="flag-badge small-flag" title="${a.country || ''}">${a.flag || '🏳️'}</span>
-                    <div class="fit-flight-text">
-                        <div class="sidebar-flight">${a.flight || a.hex || '—'}</div>
-                        <div class="sidebar-hex">${a.hex || '—'}</div>
+                    <div class="flight-copy">
+                        <div class="flight-name">${a.flight || a.hex || '—'}</div>
+                        <div class="flight-hex">${a.hex || '—'}</div>
                     </div>
                 </div>
             </td>
             <td>${a.registration || '—'}</td>
             <td>${a.type || '—'}</td>
             <td><span class="source-badge source-${String(a.signal_source || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '')}">${a.signal_source || 'Unknown'}</span></td>
-            <td>${a.alt_baro ?? '—'}</td>
-            <td>${a.gs ?? '—'}</td>
+            <td class="number">${a.alt_baro ?? '—'}</td>
+            <td class="number">${a.gs ?? '—'}</td>
         </tr>
     `).join('');
+
     resultsNote.textContent = `${sortedAircraft.length} aircraft shown`;
-    sidebarBody.querySelectorAll('.sidebar-aircraft-row').forEach(row => {
+    sidebarBody.querySelectorAll('.list-row').forEach(row => {
         row.addEventListener('click', () => focusAircraftOnMap(row.dataset.hex));
     });
 }
@@ -315,7 +333,7 @@ document.getElementById('search-form').addEventListener('submit', (e) => {
     refreshAircraft(true);
 });
 
-document.querySelectorAll('.sidebar-table thead th.sortable').forEach(th => {
+document.querySelectorAll('.list-table thead th.sortable').forEach(th => {
     th.addEventListener('click', () => {
         const key = th.dataset.sort;
         if (sortState.key === key) {
@@ -335,7 +353,7 @@ for (const id of ['toggle-registration', 'toggle-callsign', 'toggle-type', 'togg
 }
 
 renderMap(initialMapAircraft, true);
-renderSidebar(currentAircraft);
+renderSidebar(initialAircraft);
 setInterval(() => refreshAircraft(false), 1000);
 </script>
 {% endblock %}

@@ -1,26 +1,25 @@
 
 {% extends 'base.html' %}
 {% block content %}
-<div class="config-redesign">
-    <section class="config-panel card">
-        <div class="config-hero">
+<div class="config-layout">
+    <section class="config-surface card">
+        <div class="config-header">
             <div>
-                <div class="config-kicker">Settings</div>
+                <div class="config-pill">Settings</div>
                 <h1>Configuration</h1>
-                <p class="muted">Manage the aircraft source and access protection.</p>
+                <p class="muted">Connect your aircraft source and manage access to the settings page.</p>
             </div>
         </div>
-        </div>
 
-        <form method="post" class="config-form-redesign">
-            <div class="config-block">
-                <div class="block-head">
+        <form method="post" class="config-form">
+            <div class="config-group">
+                <div class="config-group-head">
                     <h3>Aircraft source</h3>
-                    <p class="muted">Choose where SkyJSON reads aircraft data from.</p>
+                    <p class="muted">Use either a local file or a remote URL.</p>
                 </div>
 
-                <div class="source-grid">
-                    <label class="field-card">
+                <div class="config-grid">
+                    <label class="input-block">
                         <span>Source type</span>
                         <select name="source_type">
                             <option value="file" {% if settings.source_type == 'file' %}selected{% endif %}>Local file</option>
@@ -28,63 +27,59 @@
                         </select>
                     </label>
 
-                    <div class="info-note">
-                        <strong>Note</strong>
-                        <p>Choose a local file or remote URL as your aircraft data source.</p>
-                    </div>
+                    <label class="input-block">
+                        <span>Local path to aircraft.json</span>
+                        <input type="text" name="aircraft_path" value="{{ settings.aircraft_path }}" placeholder="/run/readsb/aircraft.json">
+                    </label>
+
+                    <label class="input-block full-width">
+                        <span>Remote URL to aircraft.json</span>
+                        <input type="url" name="aircraft_url" value="{{ settings.aircraft_url }}" placeholder="http://192.168.1.50/aircraft.json">
+                    </label>
                 </div>
-
-                <label class="field-card">
-                    <span>Local path to aircraft.json</span>
-                    <input type="text" name="aircraft_path" value="{{ settings.aircraft_path }}" placeholder="/run/readsb/aircraft.json">
-                </label>
-
-                <label class="field-card">
-                    <span>Remote URL to aircraft.json</span>
-                    <input type="url" name="aircraft_url" value="{{ settings.aircraft_url }}" placeholder="http://192.168.1.50/aircraft.json">
-                </label>
             </div>
 
-            <div class="config-block">
-                <div class="block-head">
+            <div class="config-group">
+                <div class="config-group-head">
                     <h3>Access protection</h3>
-                    <p class="muted">Protect the configuration page with a username and password.</p>
+                    <p class="muted">Require a login before anyone can change settings.</p>
                 </div>
 
-                <label class="toggle-card">
+                <label class="toggle-panel">
                     <input type="checkbox" name="enable_auth" {% if config_auth_enabled %}checked{% endif %}>
                     <div>
                         <strong>Protect configuration panel</strong>
-                        <div class="muted">Require a login before changing settings.</div>
+                        <div class="muted">Enable a username and password for this page.</div>
                     </div>
                 </label>
 
-                <div class="source-grid">
-                    <label class="field-card">
+                <div class="config-grid">
+                    <label class="input-block">
                         <span>Configuration username</span>
                         <input type="text" name="username" value="{{ settings.config_username }}">
                     </label>
-                    <label class="field-card">
+
+                    <label class="input-block">
                         <span>New password</span>
                         <input type="password" name="password" placeholder="Leave empty to keep current password">
                     </label>
                 </div>
             </div>
 
-            <div class="form-actions">
+            <div class="config-actions">
                 <button type="submit" class="btn btn-primary">Save configuration</button>
             </div>
         </form>
     </section>
 
-    <aside class="config-sidebar-redesign">
-        <div class="card side-card side-card-accent">
+    <aside class="config-aside">
+        <div class="card aside-card">
             <h2>Developer support</h2>
             <p class="muted">This is the only sponsor link shown in the app.</p>
             <a class="btn btn-secondary" href="{{ github_donation_url }}" target="_blank" rel="noopener">Sponsor PatrickS86 on GitHub</a>
         </div>
 
-        <div class="card side-card">
+        <div class="card aside-card">
             <h2>Version management</h2>
             <dl class="meta-list">
                 <div><dt>Current version</dt><dd>{{ update_status.current_version or app_version }}</dd></div>
@@ -104,7 +99,7 @@
             {% endif %}
         </div>
 
-        <div class="card side-card">
+        <div class="card aside-card">
             <h2>Application restart</h2>
             <p class="muted">Restart the current standalone Python process after a short delay.</p>
             <form method="post" action="{{ url_for('restart_app') }}">
