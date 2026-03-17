@@ -1,6 +1,8 @@
 {% extends 'base.html' %}
 {% block extra_head %}
 <meta http-equiv="refresh" content="{{ refresh_interval }}">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 {% endblock %}
 {% block content %}
 <div class="grid stats-grid">
@@ -25,43 +27,99 @@
     {% if error %}
     <div class="empty-state">{{ error }}</div>
     {% else %}
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Hex</th>
-                    <th>Callsign</th>
-                    <th>Registration</th>
-                    <th>Type</th>
-                    <th>Altitude</th>
-                    <th>Speed</th>
-                    <th>Track</th>
-                    <th>Lat</th>
-                    <th>Lon</th>
-                    <th>Messages</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for a in aircraft %}
-                <tr>
-                    <td>{{ a.hex }}</td>
-                    <td>{{ a.flight or '—' }}</td>
-                    <td>{{ a.registration or '—' }}</td>
-                    <td>{{ a.type or '—' }}</td>
-                    <td>{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
-                    <td>{{ a.gs if a.gs is not none else '—' }}</td>
-                    <td>{{ a.track if a.track is not none else '—' }}</td>
-                    <td>{{ a.lat if a.lat is not none else '—' }}</td>
-                    <td>{{ a.lon if a.lon is not none else '—' }}</td>
-                    <td>{{ a.messages if a.messages is not none else '—' }}</td>
-                </tr>
-            {% else %}
-                <tr><td colspan="10" class="muted center">No aircraft matched your query.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    <p class="muted small">Showing {{ aircraft|length }} of {{ total_results }} results. Auto-refresh every {{ refresh_interval }} seconds.</p>
+        {% if map_aircraft %}
+        <div class="map-shell">
+            <div class="map-header">
+                <h3>Aircraft map</h3>
+                <p class="muted small">Interactive map with live aircraft positions, inspired by tar1090.</p>
+            </div>
+            <div id="aircraft-map"></div>
+        </div>
+        {% else %}
+        <div class="empty-state">No aircraft positions available for the map.</div>
+        {% endif %}
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Hex</th>
+                        <th>Callsign</th>
+                        <th>Registration</th>
+                        <th>Type</th>
+                        <th>Altitude</th>
+                        <th>Speed</th>
+                        <th>Track</th>
+                        <th>Lat</th>
+                        <th>Lon</th>
+                        <th>Messages</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for a in aircraft %}
+                    <tr>
+                        <td>{{ a.hex }}</td>
+                        <td>{{ a.flight or '—' }}</td>
+                        <td>{{ a.registration or '—' }}</td>
+                        <td>{{ a.type or '—' }}</td>
+                        <td>{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
+                        <td>{{ a.gs if a.gs is not none else '—' }}</td>
+                        <td>{{ a.track if a.track is not none else '—' }}</td>
+                        <td>{{ a.lat if a.lat is not none else '—' }}</td>
+                        <td>{{ a.lon if a.lon is not none else '—' }}</td>
+                        <td>{{ a.messages if a.messages is not none else '—' }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="10" class="muted center">No aircraft matched your query.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="muted small">Showing {{ aircraft|length }} of {{ total_results }} results. Auto-refresh every {{ refresh_interval }} seconds.</p>
     {% endif %}
 </div>
+
+{% if map_aircraft %}
+<script>
+const aircraftData = {{ map_aircraft | tojson }};
+const map = L.map('aircraft-map', { zoomControl: true, preferCanvas: true });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+const bounds = [];
+for (const aircraft of aircraftData) {
+    const heading = Number.isFinite(aircraft.track) ? aircraft.track : 0;
+    const label = aircraft.flight || aircraft.hex || 'Aircraft';
+    const icon = L.divIcon({
+        className: 'plane-marker-wrapper',
+        html: `<div class="plane-marker" style="transform: rotate(${heading}deg)">✈</div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+        popupAnchor: [0, -12]
+    });
+
+    const marker = L.marker([aircraft.lat, aircraft.lon], { icon }).addTo(map);
+    marker.bindPopup(`
+        <div class="popup-card">
+            <strong>${label}</strong><br>
+            HEX: ${aircraft.hex || '—'}<br>
+            Registration: ${aircraft.registration || '—'}<br>
+            Type: ${aircraft.type || '—'}<br>
+            Altitude: ${aircraft.alt_baro ?? '—'}<br>
+            Speed: ${aircraft.gs ?? '—'}<br>
+            Track: ${aircraft.track ?? '—'}
+        </div>
+    `);
+    bounds.push([aircraft.lat, aircraft.lon]);
+}
+
+if (bounds.length === 1) {
+    map.setView(bounds[0], 9);
+} else {
+    map.fitBounds(bounds, { padding: [30, 30] });
+}
+</script>
+{% endif %}
 {% endblock %}

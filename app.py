@@ -304,9 +304,26 @@ def index():
             or query in (a['type'] or '').lower()
         ]
 
+    map_aircraft = [
+        {
+            'hex': a['hex'],
+            'flight': a['flight'],
+            'registration': a['registration'],
+            'type': a['type'],
+            'alt_baro': a['alt_baro'],
+            'gs': a['gs'],
+            'track': a['track'],
+            'lat': a['lat'],
+            'lon': a['lon'],
+        }
+        for a in aircraft
+        if a['lat'] is not None and a['lon'] is not None
+    ]
+
     return render_template(
         'dashboard.html',
         aircraft=aircraft[:limit],
+        map_aircraft=map_aircraft,
         total_results=len(aircraft),
         stats=stats,
         error=data['error'],

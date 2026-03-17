@@ -58,7 +58,13 @@ tr:hover td { background: rgba(255,255,255,.02); }
 .meta-list dt { color: var(--muted); }
 @media (max-width: 900px) { .config-grid, .two-col { grid-template-columns: 1fr; } }
 
-select { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel-soft); color: var(--text); }
-code { background: rgba(255,255,255,.06); padding: 2px 6px; border-radius: 8px; }
-.stacked-panels { display: grid; gap: 18px; }
-.meta-list.compact div { align-items: start; }
+
+.map-shell { margin-bottom: 20px; }
+.map-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+#aircraft-map { height: 560px; width: 100%; border-radius: 18px; overflow: hidden; border: 1px solid var(--border); background: #0c1729; }
+.plane-marker-wrapper { background: transparent; border: none; }
+.plane-marker { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #7dd3fc; text-shadow: 0 0 8px rgba(77,163,255,.35); }
+.popup-card { color: #111827; min-width: 180px; line-height: 1.45; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #f8fbff; color: #111827; }
+.leaflet-control-zoom a { color: #111827; }
+@media (max-width: 900px) { #aircraft-map { height: 420px; } }
