@@ -2,6 +2,7 @@ import json
 import math
 import os
 import re
+import shlex
 import sqlite3
 import subprocess
 import sys
@@ -10,6 +11,7 @@ import time
 from functools import wraps
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit, urlunsplit
 
 import requests
 from flask import Flask, flash, redirect, render_template, request, session, url_for
@@ -46,6 +48,9 @@ def init_db() -> None:
         conn.commit()
 
 
+init_db()
+
+
 def get_setting(key: str, default: Optional[str] = None) -> Optional[str]:
     with get_db() as conn:
         row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
@@ -60,9 +65,6 @@ def set_setting(key: str, value: str) -> None:
             (key, value),
         )
         conn.commit()
-
-
-init_db()
 
 
 def run_cmd(args: List[str]) -> Dict[str, Any]:
@@ -206,27 +208,36 @@ def normalize_source_type(source_type: Optional[str]) -> str:
     return "url" if source_type == "url" else "file"
 
 
+def replace_filename_in_url(url: str, new_name: str) -> str:
+    if not url:
+        return ""
+    parts = urlsplit(url)
+    path = parts.path or ""
+    if "/" in path:
+        base_dir, _, _ = path.rpartition("/")
+        new_path = f"{base_dir}/{new_name}" if base_dir else f"/{new_name}"
+    else:
+        new_path = f"/{new_name}"
+    return urlunsplit((parts.scheme, parts.netloc, new_path, parts.query, parts.fragment))
+
+
 def derive_receiver_path(aircraft_path: str) -> str:
     if not aircraft_path:
         return ""
-    aircraft_file = Path(aircraft_path)
-    return str(aircraft_file.with_name("receiver.json"))
+    path = Path(aircraft_path)
+    return str(path.with_name("receiver.json"))
 
 
 def derive_receiver_url(aircraft_url: str) -> str:
-    if not aircraft_url:
-        return ""
-    if aircraft_url.endswith("aircraft.json"):
-        return aircraft_url[:-len("aircraft.json")] + "receiver.json"
-    return aircraft_url.rstrip("/") + "/receiver.json"
+    return replace_filename_in_url(aircraft_url, "receiver.json")
 
 
 def get_source_settings() -> Dict[str, str]:
     source_type = normalize_source_type(get_setting("source_type", "file"))
     aircraft_path = get_setting("aircraft_path", "") or ""
     aircraft_url = get_setting("aircraft_url", "") or ""
-    receiver_path = get_setting("receiver_path", "") or derive_receiver_path(aircraft_path)
-    receiver_url = get_setting("receiver_url", "") or derive_receiver_url(aircraft_url)
+    receiver_path = (get_setting("receiver_path", "") or "").strip() or derive_receiver_path(aircraft_path)
+    receiver_url = (get_setting("receiver_url", "") or "").strip() or derive_receiver_url(aircraft_url)
     return {
         "source_type": source_type,
         "aircraft_path": aircraft_path,
@@ -236,20 +247,20 @@ def get_source_settings() -> Dict[str, str]:
     }
 
 
-def read_payload_from_file(file_path: str, empty_error: str, invalid_error: str) -> Dict[str, Any]:
+def read_payload_from_file(file_path: str, empty_error: str, missing_prefix: str) -> Dict[str, Any]:
     if not file_path:
         return {"error": empty_error}
     path = Path(file_path)
     if not path.exists():
-        return {"error": f"Configured file was not found: {file_path}"}
+        return {"error": f"{missing_prefix}: {file_path}"}
     try:
         with path.open("r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as exc:
-        return {"error": f"{invalid_error}: {exc}"}
+        return {"error": f"Failed to read local JSON data: {exc}"}
 
 
-def read_payload_from_url(url: str, empty_error: str, invalid_error: str) -> Dict[str, Any]:
+def read_payload_from_url(url: str, empty_error: str) -> Dict[str, Any]:
     if not url:
         return {"error": empty_error}
     try:
@@ -257,9 +268,9 @@ def read_payload_from_url(url: str, empty_error: str, invalid_error: str) -> Dic
         response.raise_for_status()
         return response.json()
     except requests.RequestException as exc:
-        return {"error": f"Failed to fetch remote JSON: {exc}"}
+        return {"error": f"Failed to fetch remote JSON data: {exc}"}
     except ValueError as exc:
-        return {"error": f"{invalid_error}: {exc}"}
+        return {"error": f"Remote source did not return valid JSON: {exc}"}
 
 
 REGISTRATION_PREFIX_FLAGS = [
@@ -308,28 +319,23 @@ def detect_signal_source(item: Dict[str, Any]) -> str:
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     radius_km = 6371.0
-    d_lat = math.radians(lat2 - lat1)
-    d_lon = math.radians(lon2 - lon1)
-    a = (
-        math.sin(d_lat / 2) ** 2
-        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lon / 2) ** 2
-    )
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return round(radius_km * c, 1)
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    return radius_km * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
 
 
-def load_receiver(settings: Dict[str, str]) -> Optional[Dict[str, Any]]:
+def load_receiver() -> Optional[Dict[str, Any]]:
+    settings = get_source_settings()
     if settings["source_type"] == "url":
-        payload = read_payload_from_url(
-            settings["receiver_url"],
-            "No remote receiver.json URL is configured yet.",
-            "Remote receiver source did not return valid JSON",
-        )
+        payload = read_payload_from_url(settings["receiver_url"], "No remote receiver.json URL is configured yet.")
     else:
         payload = read_payload_from_file(
             settings["receiver_path"],
             "No local receiver.json path is configured yet.",
-            "Failed to read local receiver data",
+            "Configured receiver file was not found",
         )
 
     if payload.get("error"):
@@ -343,40 +349,35 @@ def load_receiver(settings: Dict[str, str]) -> Optional[Dict[str, Any]]:
     return {
         "lat": lat,
         "lon": lon,
+        "refresh": safe_int(payload.get("refresh")),
+        "history": safe_int(payload.get("history")),
     }
 
 
 def load_aircraft() -> Dict[str, Any]:
     settings = get_source_settings()
     if settings["source_type"] == "url":
-        payload = read_payload_from_url(
-            settings["aircraft_url"],
-            "No remote aircraft.json URL is configured yet.",
-            "Remote source did not return valid JSON",
-        )
+        payload = read_payload_from_url(settings["aircraft_url"], "No remote aircraft.json URL is configured yet.")
     else:
         payload = read_payload_from_file(
             settings["aircraft_path"],
             "No local aircraft.json path is configured yet.",
-            "Failed to read local aircraft data",
+            "Configured aircraft file was not found",
         )
 
-    if payload.get("error"):
-        return {"error": payload["error"], "aircraft": [], "now": None, "receiver": None}
+    receiver = load_receiver()
 
-    receiver = load_receiver(settings)
-    receiver_lat = receiver["lat"] if receiver else None
-    receiver_lon = receiver["lon"] if receiver else None
+    if payload.get("error"):
+        return {"error": payload.get("error"), "aircraft": [], "receiver": receiver, "now": None}
 
     aircraft = []
     for item in payload.get("aircraft", []):
+        country_info = get_country_info(item.get("hex", "-"), item.get("r", ""))
         lat = safe_float(item.get("lat"))
         lon = safe_float(item.get("lon"))
-        country_info = get_country_info(item.get("hex", "-"), item.get("r", ""))
         distance_km = None
-        if receiver_lat is not None and receiver_lon is not None and lat is not None and lon is not None:
-            distance_km = haversine_km(receiver_lat, receiver_lon, lat, lon)
-
+        if receiver and lat is not None and lon is not None:
+            distance_km = round(haversine_km(receiver["lat"], receiver["lon"], lat, lon), 1)
         aircraft.append(
             {
                 "hex": item.get("hex", "-"),
@@ -390,27 +391,27 @@ def load_aircraft() -> Dict[str, Any]:
                 "lat": lat,
                 "lon": lon,
                 "messages": safe_int(item.get("messages")),
+                "distance_km": distance_km,
                 "country": country_info["country"],
                 "flag": country_info["flag"],
-                "distance_km": distance_km,
             }
         )
 
     aircraft.sort(key=lambda x: ((x["flight"] or x["registration"] or x["hex"]).lower(), x["hex"]))
-    return {"error": None, "aircraft": aircraft, "now": payload.get("now"), "receiver": receiver}
+    return {"error": None, "aircraft": aircraft, "receiver": receiver, "now": payload.get("now")}
 
 
 def summarize_aircraft(aircraft: List[Dict[str, Any]]) -> Dict[str, Any]:
     visible_positions = [a for a in aircraft if a["lat"] is not None and a["lon"] is not None]
     altitudes = [a["alt_baro"] for a in aircraft if a["alt_baro"] is not None]
     speeds = [a["gs"] for a in aircraft if a["gs"] is not None]
-    distances = [a["distance_km"] for a in aircraft if a["distance_km"] is not None]
+    distances = [a["distance_km"] for a in aircraft if a.get("distance_km") is not None]
     return {
         "total": len(aircraft),
         "with_position": len(visible_positions),
         "avg_altitude": round(sum(altitudes) / len(altitudes)) if altitudes else None,
         "avg_speed": round(sum(speeds) / len(speeds), 1) if speeds else None,
-        "nearest_distance": min(distances) if distances else None,
+        "nearest": min(distances) if distances else None,
     }
 
 
@@ -429,7 +430,7 @@ def filter_aircraft(aircraft: List[Dict[str, Any]], query: str) -> List[Dict[str
     ]
 
 
-def build_map_aircraft(aircraft: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def map_payload_from_aircraft(aircraft: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [
         {
             "hex": a["hex"],
@@ -444,7 +445,7 @@ def build_map_aircraft(aircraft: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "lon": a["lon"],
             "country": a["country"],
             "flag": a["flag"],
-            "distance_km": a["distance_km"],
+            "distance_km": a.get("distance_km"),
         }
         for a in aircraft
         if a["lat"] is not None and a["lon"] is not None
@@ -457,17 +458,16 @@ def index():
     data = load_aircraft()
     aircraft = filter_aircraft(data["aircraft"], request.args.get("q") or "")
     stats = summarize_aircraft(aircraft)
-
     return render_template(
         "dashboard.html",
         aircraft=aircraft,
-        map_aircraft=build_map_aircraft(aircraft),
+        map_aircraft=map_payload_from_aircraft(aircraft),
+        receiver=data.get("receiver"),
         total_results=len(aircraft),
         stats=stats,
         error=data["error"],
         query=(request.args.get("q") or "").strip().lower(),
         refresh_interval=1,
-        receiver=data.get("receiver"),
     )
 
 
@@ -480,9 +480,9 @@ def api_aircraft():
         "error": data.get("error"),
         "stats": summarize_aircraft(aircraft),
         "total_results": len(aircraft),
-        "receiver": data.get("receiver"),
         "aircraft": aircraft,
-        "map_aircraft": build_map_aircraft(aircraft),
+        "map_aircraft": map_payload_from_aircraft(aircraft),
+        "receiver": data.get("receiver"),
     }
 
 
@@ -532,7 +532,6 @@ def config_login():
     if not config_auth_enabled():
         return redirect(url_for("config"))
 
-    error = None
     if request.method == "POST":
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
@@ -540,11 +539,11 @@ def config_login():
         stored_hash = get_setting("config_password_hash", "")
         if username == stored_username and stored_hash and check_password_hash(stored_hash, password):
             session["config_logged_in"] = True
-            flash("Login successful.", "success")
+            flash("Logged in successfully.", "success")
             return redirect(request.args.get("next") or url_for("config"))
-        error = "Invalid username or password."
+        flash("Invalid credentials.", "danger")
 
-    return render_template("login.html", error=error)
+    return render_template("login.html")
 
 
 @app.route("/config/logout")
@@ -563,9 +562,6 @@ def config():
         aircraft_url = (request.form.get("aircraft_url") or "").strip()
         receiver_path = (request.form.get("receiver_path") or "").strip()
         receiver_url = (request.form.get("receiver_url") or "").strip()
-        enable_auth = request.form.get("enable_auth") == "on"
-        username = (request.form.get("username") or "").strip()
-        password = request.form.get("password") or ""
 
         if source_type == "file" and not aircraft_path:
             flash("Please enter a local path to aircraft.json.", "danger")
@@ -573,18 +569,18 @@ def config():
         if source_type == "url" and not aircraft_url:
             flash("Please enter a remote URL to aircraft.json.", "danger")
             return redirect(url_for("config"))
-        if enable_auth and not username:
-            flash("Please enter a username when configuration protection is enabled.", "danger")
-            return redirect(url_for("config"))
 
         set_setting("source_type", source_type)
         set_setting("aircraft_path", aircraft_path)
         set_setting("aircraft_url", aircraft_url)
         set_setting("receiver_path", receiver_path)
         set_setting("receiver_url", receiver_url)
-        set_setting("config_auth_enabled", "1" if enable_auth else "0")
 
+        enable_auth = request.form.get("enable_auth") == "on"
+        set_setting("config_auth_enabled", "1" if enable_auth else "0")
         if enable_auth:
+            username = (request.form.get("username") or "").strip()
+            password = (request.form.get("password") or "").strip()
             if username:
                 set_setting("config_username", username)
             if password:
@@ -595,7 +591,11 @@ def config():
 
     versions = get_versions_simple()
     settings = {
-        **get_source_settings(),
+        "source_type": get_setting("source_type", "file"),
+        "aircraft_path": get_setting("aircraft_path", ""),
+        "aircraft_url": get_setting("aircraft_url", ""),
+        "receiver_path": get_setting("receiver_path", ""),
+        "receiver_url": get_setting("receiver_url", ""),
         "config_username": get_setting("config_username", ""),
     }
     return render_template("config.html", versions=versions, settings=settings)
@@ -604,28 +604,50 @@ def config():
 @app.route("/config/update", methods=["POST"])
 @config_login_required
 def update_app():
-    result = run_cmd(["git", "pull", "--ff-only", "origin", "main"])
-    if result["ok"]:
-        flash("SkyJSON has been updated from GitHub.", "success")
+    pull = run_cmd(["git", "pull", "--ff-only"])
+    if pull["ok"]:
+        flash("SkyJSON was updated successfully. Restart the application to load the new version.", "success")
     else:
-        flash(f"Update failed: {result['stderr'] or result['stdout'] or 'unknown error'}", "danger")
+        flash(f"Update failed: {pull['stderr'] or pull['stdout']}", "danger")
     return redirect(url_for("config"))
 
 
 @app.route("/config/restart", methods=["POST"])
 @config_login_required
 def restart_app():
-    flash("Restart requested. The application will restart shortly.", "info")
+    def delayed_restart_process() -> None:
+        python_executable = sys.executable
+        argv = [python_executable] + sys.argv
+        quoted_cmd = " ".join(shlex.quote(part) for part in argv)
+        restart_script = f"sleep 2; cd {shlex.quote(str(BASE_DIR))} && exec {quoted_cmd}"
+        subprocess.Popen(
+            ["/bin/sh", "-c", restart_script],
+            cwd=BASE_DIR,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            env=os.environ.copy(),
+        )
+        time.sleep(0.5)
+        os._exit(0)
 
-    def delayed_restart():
-        time.sleep(1)
-        os.execv(sys.executable, [sys.executable, str(BASE_DIR / "app.py")])
+    threading.Thread(target=delayed_restart_process, daemon=True).start()
+    return render_template("restart.html")
 
-    threading.Thread(target=delayed_restart, daemon=True).start()
-    return redirect(url_for("config"))
+
+@app.route("/health")
+def health():
+    versions = get_versions_simple()
+    return {
+        "status": "ok",
+        "app": "SkyJSON",
+        "server_version": versions["local"],
+        "github_version": versions["remote"],
+    }
 
 
 if __name__ == "__main__":
-    host = os.environ.get("SKYJSON_HOST", "127.0.0.1")
+    host = os.environ.get("SKYJSON_HOST", "0.0.0.0")
     port = int(os.environ.get("SKYJSON_PORT", "8000"))
-    app.run(host=host, port=port, debug=False)
+    debug = os.environ.get("SKYJSON_DEBUG", "0") == "1"
+    app.run(host=host, port=port, debug=debug, use_reloader=False)

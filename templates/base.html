@@ -1,7 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ app_title }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -11,14 +11,12 @@
     <header class="topbar">
         <div class="container topbar-inner">
             <div>
-                <div class="brand">SkyJSON</div>
+                <div class="brand">✈ {{ app_title }}</div>
                 <div class="subtitle">Lightweight aircraft dashboard</div>
             </div>
             <div class="topbar-actions">
                 <nav class="nav">
-                    {% if request.endpoint == 'setup' %}
-                    <a href="{{ url_for('setup') }}">Setup</a>
-                    {% elif config_auth_enabled and is_logged_in %}
+                    {% if is_logged_in %}
                     <a href="{{ url_for('index') }}">Dashboard</a>
                     <a href="{{ url_for('config') }}">Configuration</a>
                     <a href="{{ url_for('config_logout') }}">Logout</a>
@@ -27,20 +25,12 @@
                     <a href="{{ url_for('config') }}">Configuration</a>
                     {% endif %}
                 </nav>
-                <button type="button" class="theme-switch" id="theme-switch" aria-label="Toggle theme" aria-pressed="false">
+
+                <button type="button" class="theme-switch" id="theme-switch" aria-label="Toggle theme" title="Toggle theme">
                     <span class="theme-switch-track">
-                        <span class="theme-switch-glow"></span>
-                        <span class="theme-switch-option theme-switch-option-sun">
-                            <span class="theme-switch-emoji">☀</span>
-                            <span>Light</span>
-                        </span>
-                        <span class="theme-switch-option theme-switch-option-moon">
-                            <span class="theme-switch-emoji">☾</span>
-                            <span>Dark</span>
-                        </span>
-                        <span class="theme-switch-thumb">
-                            <span class="theme-switch-thumb-inner"></span>
-                        </span>
+                        <span class="theme-switch-icon sun">☀</span>
+                        <span class="theme-switch-icon moon">🌙</span>
+                        <span class="theme-switch-thumb"></span>
                     </span>
                 </button>
             </div>
@@ -60,36 +50,30 @@
 
     <script>
     (function () {
+        const storageKey = 'skyjson-theme';
         const root = document.documentElement;
-        const storedTheme = localStorage.getItem('skyjson-theme');
-        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const initialTheme = storedTheme || (prefersDark ? 'dark' : 'light');
-        root.setAttribute('data-theme', initialTheme);
+        const switcher = document.getElementById('theme-switch');
 
-        function syncToggle() {
-            const toggle = document.getElementById('theme-switch');
-            if (!toggle) return;
-            const isDark = root.getAttribute('data-theme') === 'dark';
-            toggle.setAttribute('aria-pressed', String(isDark));
-            toggle.title = isDark ? 'Switch to light theme' : 'Switch to dark theme';
+        function getInitialTheme() {
+            const saved = localStorage.getItem(storageKey);
+            if (saved === 'dark' || saved === 'light') return saved;
+            return 'dark';
         }
 
-        window.setSkyJsonTheme = function (theme) {
+        function applyTheme(theme) {
             root.setAttribute('data-theme', theme);
-            localStorage.setItem('skyjson-theme', theme);
-            syncToggle();
-            document.dispatchEvent(new CustomEvent('skyjson-theme-changed', { detail: { theme } }));
-        };
+            localStorage.setItem(storageKey, theme);
+            window.dispatchEvent(new CustomEvent('skyjson-theme-changed', { detail: { theme } }));
+        }
 
-        document.addEventListener('DOMContentLoaded', function () {
-            syncToggle();
-            const toggle = document.getElementById('theme-switch');
-            if (!toggle) return;
-            toggle.addEventListener('click', function () {
-                const nextTheme = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-                window.setSkyJsonTheme(nextTheme);
+        applyTheme(getInitialTheme());
+
+        if (switcher) {
+            switcher.addEventListener('click', function () {
+                const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+                applyTheme(next);
             });
-        });
+        }
     })();
     </script>
 </body>
