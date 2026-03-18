@@ -1,52 +1,380 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>SkyJSON Dashboard</title>
 
-<style>
-:root {
-    --bg: #0f172a;
-    --text: #e2e8f0;
-}
+{% extends 'base.html' %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+{% endblock %}
+{% block content %}
+<div class="dashboard-shell">
+    <div class="dashboard-topbar">
+        <div class="dashboard-title">
+            <h1>SkyJSON</h1>
+            <p class="muted">Real-time aircraft view with live map updates.</p>
+        </div>
 
-body.light {
-    --bg: #f1f5f9;
-    --text: #0f172a;
-}
+        <div class="dashboard-controls">
+            <div class="label-toggles">
+                <label><input type="checkbox" id="toggle-registration" checked> reg</label>
+                <label><input type="checkbox" id="toggle-callsign" checked> callsign</label>
+                <label><input type="checkbox" id="toggle-type"> type</label>
+                <label><input type="checkbox" id="toggle-altitude"> alt</label>
+            </div>
 
-body {
-    background: var(--bg);
-    color: var(--text);
-    margin: 0;
-    font-family: Arial;
-}
-</style>
-</head>
+            <form method="get" class="search-shell" id="search-form">
+                <input type="text" name="q" id="search-input" placeholder="Search aircraft, type, source" value="{{ request.args.get('q', '') }}">
+                <button type="submit" class="btn btn-primary">Search</button>
+            </form>
+        </div>
+    </div>
 
-<body>
+    <div class="stats-band">
+        <div class="stat-pill">
+            <span>Aircraft</span>
+            <strong id="stat-total">{{ stats.total }}</strong>
+        </div>
+        <div class="stat-pill">
+            <span>Visible</span>
+            <strong id="stat-visible">{{ stats.with_position }}</strong>
+        </div>
+        <div class="stat-pill">
+            <span>Avg Alt</span>
+            <strong id="stat-alt">{{ stats.avg_altitude if stats.avg_altitude is not none else '—' }}</strong>
+        </div>
+        <div class="stat-pill">
+            <span>Avg Speed</span>
+            <strong id="stat-speed">{{ stats.avg_speed if stats.avg_speed is not none else '—' }}</strong>
+        </div>
+    </div>
 
-<div style="position:absolute;top:10px;right:10px;cursor:pointer;" onclick="toggleTheme()">
-🌙 / ☀️
+    {% if error %}
+    <div class="empty-state" id="error-box">{{ error }}</div>
+    {% else %}
+    <div class="empty-state" id="error-box" hidden></div>
+    {% endif %}
+
+    <div class="dashboard-main card">
+        <section class="map-panel">
+            <div class="map-frame">
+                <div id="aircraft-map"></div>
+            </div>
+            <div class="legend-row">
+                <span><i class="legend-dot alt-low"></i> low</span>
+                <span><i class="legend-dot alt-mid"></i> medium</span>
+                <span><i class="legend-dot alt-high"></i> high</span>
+                <span><i class="legend-dot alt-very-high"></i> very high</span>
+            </div>
+        </section>
+
+        <aside class="list-panel">
+            <div class="list-panel-head">
+                <div>
+                    <h2>Received aircraft</h2>
+                    <p class="muted small" id="results-note">All received aircraft are shown</p>
+                </div>
+            </div>
+
+            <div class="list-table-wrap">
+                <table class="list-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable active" data-sort="flight">Flight</th>
+                            <th class="sortable" data-sort="registration">Reg</th>
+                            <th class="sortable" data-sort="type">Type</th>
+                            <th class="sortable" data-sort="signal_source">Src</th>
+                            <th class="sortable number" data-sort="alt_baro">Alt</th>
+                            <th class="sortable number" data-sort="gs">Spd</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sidebar-body">
+                    {% for a in aircraft %}
+                        <tr class="list-row" data-hex="{{ a.hex }}">
+                            <td>
+                                <div class="flight-cell">
+                                    <span class="flag-badge small-flag" title="{{ a.country }}">{{ a.flag }}</span>
+                                    <div class="flight-copy">
+                                        <div class="flight-name">{{ a.flight or a.hex }}</div>
+                                        <div class="flight-hex">{{ a.hex }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ a.registration or '—' }}</td>
+                            <td>{{ a.type or '—' }}</td>
+                            <td><span class="source-badge source-{{ a.signal_source|lower|replace('-', '')|replace(' ', '') }}">{{ a.signal_source }}</span></td>
+                            <td class="number">{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
+                            <td class="number">{{ a.gs if a.gs is not none else '—' }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="6" class="muted center">No aircraft matched your query.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </aside>
+    </div>
 </div>
 
-<h2 style="padding:20px;">Dashboard</h2>
-
 <script>
-function applyTheme() {
-    const theme = localStorage.getItem("theme");
-    if (theme === "light") {
-        document.body.classList.add("light");
+const initialMapAircraft = {{ map_aircraft | tojson }};
+const initialAircraft = {{ aircraft | tojson }};
+const searchInput = document.getElementById('search-input');
+const errorBox = document.getElementById('error-box');
+const sidebarBody = document.getElementById('sidebar-body');
+const resultsNote = document.getElementById('results-note');
+
+function altitudeColor(altitude) {
+    if (altitude === null || altitude === undefined || Number.isNaN(Number(altitude))) return '#94a3b8';
+    const alt = Number(altitude);
+    if (alt < 5000) return '#22c55e';
+    if (alt < 15000) return '#f59e0b';
+    if (alt < 30000) return '#ef4444';
+    return '#8b5cf6';
+}
+
+const map = L.map('aircraft-map', { zoomControl: true, preferCanvas: true });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+const markerLayer = L.layerGroup().addTo(map);
+let firstFitDone = false;
+let currentMapAircraft = initialMapAircraft;
+let currentAircraft = initialAircraft;
+let sortState = { key: 'flight', dir: 'asc' };
+let selectedAircraftHex = null;
+let refreshingMap = false;
+
+function compareValues(a, b, key) {
+    const av = a[key];
+    const bv = b[key];
+    const an = typeof av === 'number' ? av : Number(av);
+    const bn = typeof bv === 'number' ? bv : Number(bv);
+    const aNum = !Number.isNaN(an) && av !== null && av !== undefined && av !== '';
+    const bNum = !Number.isNaN(bn) && bv !== null && bv !== undefined && bv !== '';
+    if (aNum && bNum) return an - bn;
+    return String(av || '').localeCompare(String(bv || ''));
+}
+
+function sortAircraft(list) {
+    const arr = [...list];
+    arr.sort((a, b) => {
+        let res = compareValues(a, b, sortState.key);
+        if (sortState.key === 'flight' && res === 0) res = compareValues(a, b, 'registration');
+        return sortState.dir === 'asc' ? res : -res;
+    });
+    return arr;
+}
+
+function updateSortHeaders() {
+    document.querySelectorAll('.list-table thead th.sortable').forEach(th => {
+        th.classList.toggle('active', th.dataset.sort === sortState.key);
+        th.classList.toggle('desc', th.dataset.sort === sortState.key && sortState.dir === 'desc');
+    });
+}
+
+function labelConfig() {
+    return {
+        registration: document.getElementById('toggle-registration').checked,
+        callsign: document.getElementById('toggle-callsign').checked,
+        type: document.getElementById('toggle-type').checked,
+        altitude: document.getElementById('toggle-altitude').checked,
+    };
+}
+
+function buildLabel(aircraft) {
+    const cfg = labelConfig();
+    const parts = [];
+    if (cfg.registration && aircraft.registration) parts.push(aircraft.registration);
+    if (cfg.callsign && aircraft.flight) parts.push(aircraft.flight);
+    if (cfg.type && aircraft.type) parts.push(aircraft.type);
+    if (cfg.altitude && aircraft.alt_baro !== null && aircraft.alt_baro !== undefined) parts.push(`${aircraft.alt_baro} ft`);
+    return parts.join(' · ');
+}
+
+function focusAircraftOnMap(hex) {
+    const entry = currentMapAircraft.find(a => a.hex === hex);
+    if (!entry || entry.lat === null || entry.lon === null) return;
+    let foundMarker = null;
+    markerLayer.eachLayer(layer => {
+        if (layer.aircraftHex === hex) foundMarker = layer;
+    });
+    if (foundMarker) {
+        selectedAircraftHex = hex;
+        map.setView([entry.lat, entry.lon], Math.max(map.getZoom(), 12), { animate: true });
+        foundMarker.openPopup();
     }
 }
 
-function toggleTheme() {
-    const isLight = document.body.classList.toggle("light");
-    localStorage.setItem("theme", isLight ? "light" : "dark");
+function renderMap(aircraftList, refit=false) {
+    currentMapAircraft = aircraftList;
+    refreshingMap = true;
+    markerLayer.clearLayers();
+    const bounds = [];
+
+    for (const aircraft of aircraftList) {
+        const heading = Number.isFinite(aircraft.track) ? aircraft.track : 0;
+        const color = altitudeColor(aircraft.alt_baro);
+        const label = aircraft.flight || aircraft.hex || 'Aircraft';
+        const icon = L.divIcon({
+            className: 'plane-marker-wrapper',
+            html: `<div class="plane-marker" style="color:${color}; transform: rotate(${heading - 90}deg)">✈</div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+            popupAnchor: [0, -14]
+        });
+
+        const marker = L.marker([aircraft.lat, aircraft.lon], { icon }).addTo(markerLayer);
+        marker.aircraftHex = aircraft.hex;
+
+        const tooltipLabel = buildLabel(aircraft);
+        if (tooltipLabel) {
+            marker.bindTooltip(tooltipLabel, {
+                permanent: true,
+                direction: 'top',
+                offset: [0, -14],
+                className: 'aircraft-label'
+            });
+        }
+
+        marker.on('popupopen', () => {
+            selectedAircraftHex = aircraft.hex || null;
+        });
+        marker.on('popupclose', () => {
+            if (!refreshingMap && selectedAircraftHex === aircraft.hex) {
+                selectedAircraftHex = null;
+            }
+        });
+
+        marker.bindPopup(`
+            <div class="popup-card popup-elevated">
+                <div class="popup-topline" style="background:${color}"></div>
+                <div class="popup-header">
+                    <div class="popup-title-group">
+                        <div class="popup-title">${label}</div>
+                        <div class="popup-subtitle">${aircraft.registration || 'Unknown registration'}</div>
+                    </div>
+                    <div class="popup-flag">${aircraft.flag || '🏳️'}</div>
+                </div>
+                <div class="popup-grid">
+                    <div><span>HEX</span><strong>${aircraft.hex || '—'}</strong></div>
+                    <div><span>Type</span><strong>${aircraft.type || '—'}</strong></div>
+                    <div><span>Source</span><strong>${aircraft.signal_source || '—'}</strong></div>
+                    <div><span>Altitude</span><strong>${aircraft.alt_baro ?? '—'}</strong></div>
+                    <div><span>Speed</span><strong>${aircraft.gs ?? '—'}</strong></div>
+                    <div><span>Track</span><strong>${aircraft.track ?? '—'}</strong></div>
+                </div>
+            </div>
+        `);
+        if (selectedAircraftHex && aircraft.hex === selectedAircraftHex) {
+            marker.openPopup();
+        }
+        bounds.push([aircraft.lat, aircraft.lon]);
+    }
+
+    if ((refit || !firstFitDone) && bounds.length === 1) {
+        map.setView(bounds[0], 9);
+        firstFitDone = true;
+    } else if ((refit || !firstFitDone) && bounds.length > 1) {
+        map.fitBounds(bounds, { padding: [20, 20] });
+        firstFitDone = true;
+    }
+    refreshingMap = false;
 }
 
-applyTheme();
-</script>
+function renderSidebar(aircraft) {
+    currentAircraft = aircraft;
+    const sortedAircraft = sortAircraft(aircraft);
+    if (!sortedAircraft.length) {
+        sidebarBody.innerHTML = '<tr><td colspan="6" class="muted center">No aircraft matched your query.</td></tr>';
+        resultsNote.textContent = '0 aircraft shown';
+        return;
+    }
 
-</body>
-</html>
+    sidebarBody.innerHTML = sortedAircraft.map(a => `
+        <tr class="list-row" data-hex="${a.hex || ''}">
+            <td>
+                <div class="flight-cell">
+                    <span class="flag-badge small-flag" title="${a.country || ''}">${a.flag || '🏳️'}</span>
+                    <div class="flight-copy">
+                        <div class="flight-name">${a.flight || a.hex || '—'}</div>
+                        <div class="flight-hex">${a.hex || '—'}</div>
+                    </div>
+                </div>
+            </td>
+            <td>${a.registration || '—'}</td>
+            <td>${a.type || '—'}</td>
+            <td><span class="source-badge source-${String(a.signal_source || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '')}">${a.signal_source || 'Unknown'}</span></td>
+            <td class="number">${a.alt_baro ?? '—'}</td>
+            <td class="number">${a.gs ?? '—'}</td>
+        </tr>
+    `).join('');
+
+    resultsNote.textContent = `${sortedAircraft.length} aircraft shown`;
+    sidebarBody.querySelectorAll('.list-row').forEach(row => {
+        row.addEventListener('click', () => focusAircraftOnMap(row.dataset.hex));
+    });
+}
+
+function updateStats(stats) {
+    document.getElementById('stat-total').textContent = stats.total ?? '—';
+    document.getElementById('stat-visible').textContent = stats.with_position ?? '—';
+    document.getElementById('stat-alt').textContent = stats.avg_altitude ?? '—';
+    document.getElementById('stat-speed').textContent = stats.avg_speed ?? '—';
+}
+
+async function refreshAircraft(refit=false) {
+    const q = searchInput.value.trim();
+    const url = q ? `/api/aircraft?q=${encodeURIComponent(q)}` : '/api/aircraft';
+    try {
+        const res = await fetch(url, { cache: 'no-store' });
+        const data = await res.json();
+
+        if (data.error) {
+            errorBox.hidden = false;
+            errorBox.textContent = data.error;
+            return;
+        }
+
+        errorBox.hidden = true;
+        renderSidebar(data.aircraft || []);
+        renderMap(data.map_aircraft || [], refit);
+        updateStats(data.stats || {});
+    } catch (err) {
+        errorBox.hidden = false;
+        errorBox.textContent = 'Failed to refresh live aircraft data.';
+    }
+}
+
+document.getElementById('search-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    refreshAircraft(true);
+});
+
+document.querySelectorAll('.list-table thead th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+        const key = th.dataset.sort;
+        if (sortState.key === key) {
+            sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortState.key = key;
+            sortState.dir = 'asc';
+        }
+        updateSortHeaders();
+        renderSidebar(currentAircraft);
+    });
+});
+updateSortHeaders();
+
+for (const id of ['toggle-registration', 'toggle-callsign', 'toggle-type', 'toggle-altitude']) {
+    document.getElementById(id).addEventListener('change', () => renderMap(currentMapAircraft, false));
+}
+
+renderMap(initialMapAircraft, true);
+renderSidebar(initialAircraft);
+map.on('click', () => {
+    selectedAircraftHex = null;
+});
+
+setInterval(() => refreshAircraft(false), 1000);
+</script>
+{% endblock %}
