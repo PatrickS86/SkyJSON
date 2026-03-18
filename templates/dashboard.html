@@ -19,6 +19,7 @@
                 <label><input type="checkbox" id="toggle-callsign" checked> Flight</label>
                 <label><input type="checkbox" id="toggle-type"> Type</label>
                 <label><input type="checkbox" id="toggle-altitude"> Alt</label>
+                <label><input type="checkbox" id="toggle-polar"> Polar</label>
             </div>
         </div>
     </div>
@@ -46,6 +47,7 @@
                 <span><span class="legend-dot alt-mid"></span>Mid altitude</span>
                 <span><span class="legend-dot alt-high"></span>High altitude</span>
                 <span><span class="legend-dot alt-very-high"></span>Very high altitude</span>
+                <span><span class="legend-dot polar-dot"></span>Polar trail</span>
                 {% if receiver %}
                 <span><span class="legend-dot receiver-dot"></span>Receiver</span>
                 {% endif %}
@@ -107,6 +109,7 @@ const searchInput = document.getElementById('search-input');
 const errorBox = document.getElementById('error-box');
 const sidebarBody = document.getElementById('sidebar-body');
 const resultsNote = document.getElementById('results-note');
+const polarToggle = document.getElementById('toggle-polar');
 let currentReceiver = initialReceiver;
 
 function altitudeColor(altitude) {
@@ -137,12 +140,17 @@ function applyMapTheme() {
         if (map.hasLayer(darkTiles)) map.removeLayer(darkTiles);
         if (!map.hasLayer(lightTiles)) lightTiles.addTo(map);
     }
+    renderPolarTrails();
 }
 applyMapTheme();
 document.addEventListener('skyjson-theme-changed', applyMapTheme);
 
 const markerLayer = L.layerGroup().addTo(map);
 const receiverLayer = L.layerGroup().addTo(map);
+const polarLayer = L.layerGroup().addTo(map);
+const polarHistory = new Map();
+const POLAR_POINT_LIMIT = 180;
+const POLAR_RETENTION_MS = 10 * 60 * 1000;
 let firstFitDone = false;
 let currentMapAircraft = initialMapAircraft;
 let currentAircraft = initialAircraft;
@@ -239,11 +247,88 @@ function renderReceiver(receiver) {
     `);
 }
 
+function polarEnabled() {
+    return polarToggle.checked;
+}
+
+function initialisePolarToggle() {
+    const stored = localStorage.getItem('skyjson-polar-enabled');
+    polarToggle.checked = stored === '1';
+    polarToggle.addEventListener('change', () => {
+        localStorage.setItem('skyjson-polar-enabled', polarToggle.checked ? '1' : '0');
+        renderPolarTrails();
+    });
+}
+
+function updatePolarHistory(aircraftList) {
+    const now = Date.now();
+    const seen = new Set();
+
+    for (const aircraft of aircraftList) {
+        if (aircraft.lat === null || aircraft.lon === null || !aircraft.hex) continue;
+        seen.add(aircraft.hex);
+        const point = [Number(aircraft.lat), Number(aircraft.lon)];
+        const existing = polarHistory.get(aircraft.hex) || {
+            points: [],
+            color: altitudeColor(aircraft.alt_baro),
+            label: aircraft.flight || aircraft.registration || aircraft.hex,
+            lastSeen: now
+        };
+
+        const lastPoint = existing.points[existing.points.length - 1];
+        if (!lastPoint || lastPoint[0] !== point[0] || lastPoint[1] !== point[1]) {
+            existing.points.push(point);
+            if (existing.points.length > POLAR_POINT_LIMIT) {
+                existing.points = existing.points.slice(-POLAR_POINT_LIMIT);
+            }
+        }
+
+        existing.color = altitudeColor(aircraft.alt_baro);
+        existing.label = aircraft.flight || aircraft.registration || aircraft.hex;
+        existing.lastSeen = now;
+        polarHistory.set(aircraft.hex, existing);
+    }
+
+    for (const [hex, entry] of polarHistory.entries()) {
+        if (!seen.has(hex) && (now - entry.lastSeen) > POLAR_RETENTION_MS) {
+            polarHistory.delete(hex);
+        }
+    }
+}
+
+function renderPolarTrails() {
+    polarLayer.clearLayers();
+    if (!polarEnabled()) return;
+
+    const theme = document.documentElement.getAttribute('data-theme');
+    const opacity = theme === 'dark' ? 0.55 : 0.42;
+
+    for (const [hex, entry] of polarHistory.entries()) {
+        if (!entry.points || entry.points.length < 2) continue;
+        const polyline = L.polyline(entry.points, {
+            color: entry.color,
+            weight: 2,
+            opacity,
+            smoothFactor: 1.2,
+            lineCap: 'round',
+            lineJoin: 'round',
+            className: 'polar-trail-line'
+        }).addTo(polarLayer);
+        polyline.bindTooltip(`Polar · ${entry.label || hex}`, {
+            sticky: true,
+            direction: 'top',
+            className: 'aircraft-label polar-label'
+        });
+    }
+}
+
 function renderMap(aircraftList, receiver, refit=false) {
     currentMapAircraft = aircraftList;
     refreshingMap = true;
     markerLayer.clearLayers();
     renderReceiver(receiver);
+    updatePolarHistory(aircraftList);
+    renderPolarTrails();
     const bounds = [];
 
     if (receiver && receiver.lat !== null && receiver.lon !== null) {
@@ -409,6 +494,7 @@ for (const id of ['toggle-registration', 'toggle-callsign', 'toggle-type', 'togg
     document.getElementById(id).addEventListener('change', () => renderMap(currentMapAircraft, currentReceiver, false));
 }
 
+initialisePolarToggle();
 renderMap(initialMapAircraft, initialReceiver, true);
 renderSidebar(initialAircraft);
 map.on('click', () => {

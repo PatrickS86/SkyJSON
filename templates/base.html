@@ -1,7 +1,7 @@
-<!doctype html>
-<html lang="en" data-theme="dark">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ app_title }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -11,12 +11,14 @@
     <header class="topbar">
         <div class="container topbar-inner">
             <div>
-                <div class="brand">✈ {{ app_title }}</div>
+                <div class="brand">SkyJSON</div>
                 <div class="subtitle">Lightweight aircraft dashboard</div>
             </div>
             <div class="topbar-actions">
                 <nav class="nav">
-                    {% if is_logged_in %}
+                    {% if request.endpoint == 'setup' %}
+                    <a href="{{ url_for('setup') }}">Setup</a>
+                    {% elif config_auth_enabled and is_logged_in %}
                     <a href="{{ url_for('index') }}">Dashboard</a>
                     <a href="{{ url_for('config') }}">Configuration</a>
                     <a href="{{ url_for('config_logout') }}">Logout</a>
@@ -27,9 +29,18 @@
                 </nav>
                 <button type="button" class="theme-switch" id="theme-switch" aria-label="Toggle theme" aria-pressed="false">
                     <span class="theme-switch-track">
-                        <span class="theme-switch-icon theme-switch-icon-sun">☀</span>
-                        <span class="theme-switch-thumb"></span>
-                        <span class="theme-switch-icon theme-switch-icon-moon">☾</span>
+                        <span class="theme-switch-glow"></span>
+                        <span class="theme-switch-option theme-switch-option-sun">
+                            <span class="theme-switch-emoji">☀</span>
+                            <span>Light</span>
+                        </span>
+                        <span class="theme-switch-option theme-switch-option-moon">
+                            <span class="theme-switch-emoji">☾</span>
+                            <span>Dark</span>
+                        </span>
+                        <span class="theme-switch-thumb">
+                            <span class="theme-switch-thumb-inner"></span>
+                        </span>
                     </span>
                 </button>
             </div>
