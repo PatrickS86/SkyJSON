@@ -1,80 +1,13 @@
-<!doctype html>
-<html lang="en" data-theme="dark">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ app_title }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    {% block extra_head %}{% endblock %}
-</head>
+<!DOCTYPE html>
+<html>
 <body>
-    <header class="topbar">
-        <div class="container topbar-inner">
-            <div>
-                <div class="brand">✈ {{ app_title }}</div>
-                <div class="subtitle">Lightweight aircraft dashboard</div>
-            </div>
-            <div class="topbar-actions">
-                <nav class="nav">
-                    {% if is_logged_in %}
-                    <a href="{{ url_for('index') }}">Dashboard</a>
-                    <a href="{{ url_for('config') }}">Configuration</a>
-                    <a href="{{ url_for('config_logout') }}">Logout</a>
-                    {% else %}
-                    <a href="{{ url_for('index') }}">Dashboard</a>
-                    <a href="{{ url_for('config') }}">Configuration</a>
-                    {% endif %}
-                </nav>
-
-                <button type="button" class="theme-switch" id="theme-switch" aria-label="Toggle theme" title="Toggle theme">
-                    <span class="theme-switch-track">
-                        <span class="theme-switch-icon sun">☀</span>
-                        <span class="theme-switch-icon moon">🌙</span>
-                        <span class="theme-switch-thumb"></span>
-                    </span>
-                </button>
-            </div>
-        </div>
-    </header>
-
-    <main class="container page">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        {% block content %}{% endblock %}
-    </main>
-
-    <script>
-    (function () {
-        const storageKey = 'skyjson-theme';
-        const root = document.documentElement;
-        const switcher = document.getElementById('theme-switch');
-
-        function getInitialTheme() {
-            const saved = localStorage.getItem(storageKey);
-            if (saved === 'dark' || saved === 'light') return saved;
-            return 'dark';
-        }
-
-        function applyTheme(theme) {
-            root.setAttribute('data-theme', theme);
-            localStorage.setItem(storageKey, theme);
-            window.dispatchEvent(new CustomEvent('skyjson-theme-changed', { detail: { theme } }));
-        }
-
-        applyTheme(getInitialTheme());
-
-        if (switcher) {
-            switcher.addEventListener('click', function () {
-                const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-                applyTheme(next);
-            });
-        }
-    })();
-    </script>
+<div onclick="toggle()" style="position:absolute;top:10px;right:10px;cursor:pointer;">🌙</div>
+<script>
+function toggle(){
+ document.body.classList.toggle("dark");
+ localStorage.setItem("theme",document.body.classList.contains("dark")?"dark":"light");
+}
+if(localStorage.getItem("theme")==="dark"){document.body.classList.add("dark");}
+</script>
 </body>
 </html>
