@@ -1,4 +1,3 @@
-
 import json
 import os
 import re
@@ -20,7 +19,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "config.db"
 VERSION_FILE = BASE_DIR / "VERSION"
 DEFAULT_SECRET = "change-me-skyjson-secret"
-APP_VERSION = "1.8.5"
+APP_VERSION = "1.8.6"
 REQUEST_TIMEOUT = 10
 GITHUB_SPONSOR_URL = "https://github.com/sponsors/PatrickS86"
 
@@ -37,12 +36,12 @@ def get_db() -> sqlite3.Connection:
 def init_db() -> None:
     with get_db() as conn:
         conn.execute(
-            '''
+            """
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT
             )
-            '''
+            """
         )
         conn.commit()
 
@@ -160,7 +159,6 @@ def require_installation(fn):
         if not is_installed() and request.endpoint not in {"setup", "static"}:
             return redirect(url_for("setup"))
         return fn(*args, **kwargs)
-
     return wrapper
 
 
@@ -172,7 +170,6 @@ def config_login_required(fn):
         if config_auth_enabled() and not is_logged_in():
             return redirect(url_for("config_login", next=request.path))
         return fn(*args, **kwargs)
-
     return wrapper
 
 
