@@ -1,4 +1,3 @@
-
 {% extends 'base.html' %}
 {% block extra_head %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
@@ -6,12 +5,7 @@
 {% endblock %}
 {% block content %}
 <div class="dashboard-shell">
-    <div class="dashboard-topbar">
-        <div class="dashboard-title">
-            <h1>SkyJSON</h1>
-            <p class="muted">Real-time aircraft view with live map updates.</p>
-        </div>
-
+    <div class="dashboard-topbar dashboard-topbar-minimal">
         <div class="dashboard-controls">
             <div class="label-toggles">
                 <label><input type="checkbox" id="toggle-registration" checked> reg</label>
@@ -21,13 +15,13 @@
             </div>
 
             <form method="get" class="search-shell" id="search-form">
-                <input type="text" name="q" id="search-input" placeholder="Search aircraft, type, source" value="{{ request.args.get('q', '') }}">
+                <input type="text" name="q" id="search-input" placeholder="Search flight, reg, type, source" value="{{ request.args.get('q', '') }}">
                 <button type="submit" class="btn btn-primary">Search</button>
             </form>
         </div>
     </div>
 
-    <div class="stats-band">
+    <div class="stats-band stats-band-wide">
         <div class="stat-pill">
             <span>Aircraft</span>
             <strong id="stat-total">{{ stats.total }}</strong>
@@ -44,6 +38,14 @@
             <span>Avg Speed</span>
             <strong id="stat-speed">{{ stats.avg_speed if stats.avg_speed is not none else '—' }}</strong>
         </div>
+        <div class="stat-pill">
+            <span>Receiver version</span>
+            <strong id="receiver-version">{{ receiver.version if receiver and receiver.version else '—' }}</strong>
+        </div>
+        <div class="stat-pill">
+            <span>Receiver location</span>
+            <strong id="receiver-location">{% if receiver and receiver.lat is not none and receiver.lon is not none %}{{ '%.4f'|format(receiver.lat) }}, {{ '%.4f'|format(receiver.lon) }}{% else %}—{% endif %}</strong>
+        </div>
     </div>
 
     {% if error %}
@@ -51,6 +53,36 @@
     {% else %}
     <div class="empty-state" id="error-box" hidden></div>
     {% endif %}
+
+    {% if receiver_error %}
+    <div class="receiver-state" id="receiver-error-box">Receiver info unavailable: {{ receiver_error }}</div>
+    {% else %}
+    <div class="receiver-state" id="receiver-error-box" hidden></div>
+    {% endif %}
+
+    <div class="receiver-summary card" id="receiver-summary" {% if not receiver %}hidden{% endif %}>
+        <div class="receiver-summary-head">
+            <div>
+                <h2>Receiver</h2>
+                <p class="muted small" id="receiver-source">{{ receiver.path_or_url if receiver else '' }}</p>
+            </div>
+            <div class="receiver-badges" id="receiver-badges">
+                {% if receiver %}
+                    {% if receiver.readsb %}<span class="status-chip">readsb</span>{% endif %}
+                    {% if receiver.db_server %}<span class="status-chip">dbServer</span>{% endif %}
+                    {% if receiver.bin_craft %}<span class="status-chip">binCraft</span>{% endif %}
+                    {% if receiver.zstd %}<span class="status-chip">zstd</span>{% endif %}
+                    {% if receiver.outline_json %}<span class="status-chip">outlineJson</span>{% endif %}
+                {% endif %}
+            </div>
+        </div>
+        <div class="receiver-grid" id="receiver-grid">
+            <div><span>Refresh</span><strong>{{ receiver.refresh if receiver and receiver.refresh is not none else '—' }}</strong></div>
+            <div><span>History</span><strong>{{ receiver.history if receiver and receiver.history is not none else '—' }}</strong></div>
+            <div><span>JAERO timeout</span><strong>{{ receiver.jaero_timeout if receiver and receiver.jaero_timeout is not none else '—' }}</strong></div>
+            <div><span>Receiver version</span><strong>{{ receiver.version if receiver and receiver.version else '—' }}</strong></div>
+        </div>
+    </div>
 
     <div class="dashboard-main card">
         <section class="map-panel">
@@ -116,10 +148,18 @@
 <script>
 const initialMapAircraft = {{ map_aircraft | tojson }};
 const initialAircraft = {{ aircraft | tojson }};
+const initialReceiver = {{ receiver | tojson }};
 const searchInput = document.getElementById('search-input');
 const errorBox = document.getElementById('error-box');
+const receiverErrorBox = document.getElementById('receiver-error-box');
 const sidebarBody = document.getElementById('sidebar-body');
 const resultsNote = document.getElementById('results-note');
+const receiverSummary = document.getElementById('receiver-summary');
+const receiverGrid = document.getElementById('receiver-grid');
+const receiverBadges = document.getElementById('receiver-badges');
+const receiverSource = document.getElementById('receiver-source');
+const receiverVersionStat = document.getElementById('receiver-version');
+const receiverLocationStat = document.getElementById('receiver-location');
 
 function altitudeColor(altitude) {
     if (altitude === null || altitude === undefined || Number.isNaN(Number(altitude))) return '#94a3b8';
@@ -131,10 +171,33 @@ function altitudeColor(altitude) {
 }
 
 const map = L.map('aircraft-map', { zoomControl: true, preferCanvas: true });
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+let activeTileLayer = null;
+
+function createTileLayer(theme) {
+    if (theme === 'light') {
+        return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        });
+    }
+    return L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains: 'abcd'
+    });
+}
+
+function applyMapTheme() {
+    const theme = window.SkyJSONTheme ? window.SkyJSONTheme.get() : 'dark';
+    if (activeTileLayer) {
+        map.removeLayer(activeTileLayer);
+    }
+    activeTileLayer = createTileLayer(theme);
+    activeTileLayer.addTo(map);
+}
+
+applyMapTheme();
+window.addEventListener('skyjson-theme-changed', applyMapTheme);
 
 const markerLayer = L.layerGroup().addTo(map);
 let firstFitDone = false;
@@ -322,6 +385,44 @@ function updateStats(stats) {
     document.getElementById('stat-speed').textContent = stats.avg_speed ?? '—';
 }
 
+function renderReceiver(receiver, receiverError) {
+    if (receiverError) {
+        receiverErrorBox.hidden = false;
+        receiverErrorBox.textContent = `Receiver info unavailable: ${receiverError}`;
+    } else {
+        receiverErrorBox.hidden = true;
+    }
+
+    if (!receiver) {
+        receiverSummary.hidden = true;
+        receiverVersionStat.textContent = '—';
+        receiverLocationStat.textContent = '—';
+        return;
+    }
+
+    receiverSummary.hidden = false;
+    receiverSource.textContent = receiver.path_or_url || '';
+    receiverVersionStat.textContent = receiver.version || '—';
+    receiverLocationStat.textContent = receiver.lat !== null && receiver.lon !== null
+        ? `${Number(receiver.lat).toFixed(4)}, ${Number(receiver.lon).toFixed(4)}`
+        : '—';
+
+    receiverGrid.innerHTML = `
+        <div><span>Refresh</span><strong>${receiver.refresh ?? '—'}</strong></div>
+        <div><span>History</span><strong>${receiver.history ?? '—'}</strong></div>
+        <div><span>JAERO timeout</span><strong>${receiver.jaero_timeout ?? '—'}</strong></div>
+        <div><span>Receiver version</span><strong>${receiver.version || '—'}</strong></div>
+    `;
+
+    const badges = [];
+    if (receiver.readsb) badges.push('readsb');
+    if (receiver.db_server) badges.push('dbServer');
+    if (receiver.bin_craft) badges.push('binCraft');
+    if (receiver.zstd) badges.push('zstd');
+    if (receiver.outline_json) badges.push('outlineJson');
+    receiverBadges.innerHTML = badges.map(label => `<span class="status-chip">${label}</span>`).join('');
+}
+
 async function refreshAircraft(refit=false) {
     const q = searchInput.value.trim();
     const url = q ? `/api/aircraft?q=${encodeURIComponent(q)}` : '/api/aircraft';
@@ -339,6 +440,7 @@ async function refreshAircraft(refit=false) {
         renderSidebar(data.aircraft || []);
         renderMap(data.map_aircraft || [], refit);
         updateStats(data.stats || {});
+        renderReceiver(data.receiver || null, data.receiver_error || null);
     } catch (err) {
         errorBox.hidden = false;
         errorBox.textContent = 'Failed to refresh live aircraft data.';
@@ -371,6 +473,7 @@ for (const id of ['toggle-registration', 'toggle-callsign', 'toggle-type', 'togg
 
 renderMap(initialMapAircraft, true);
 renderSidebar(initialAircraft);
+renderReceiver(initialReceiver, {{ receiver_error | tojson }});
 map.on('click', () => {
     selectedAircraftHex = null;
 });
