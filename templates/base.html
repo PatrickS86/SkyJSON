@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script>
         (function () {
-            var theme = localStorage.getItem('skyjson-theme') || 'dark';
-            document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : 'dark');
+            var stored = localStorage.getItem('skyjson-theme');
+            var theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
         })();
     </script>
     <title>{{ app_title }}</title>
@@ -21,7 +22,16 @@
                 <div class="subtitle">Lightweight aircraft dashboard</div>
             </div>
             <div class="topbar-actions">
-                <button type="button" class="theme-switch" id="theme-switch">Theme</button>
+                <button type="button" class="theme-switch" id="theme-switch" aria-label="Toggle theme" aria-pressed="false">
+                    <span class="theme-switch-track">
+                        <span class="theme-switch-icons" aria-hidden="true">
+                            <span class="theme-switch-icon theme-switch-icon-sun">☀</span>
+                            <span class="theme-switch-icon theme-switch-icon-moon">☾</span>
+                        </span>
+                        <span class="theme-switch-thumb"></span>
+                    </span>
+                    <span class="theme-switch-label" id="theme-switch-label">Dark mode</span>
+                </button>
                 <nav class="nav">
                     {% if is_logged_in %}
                     <a href="{{ url_for('index') }}">Dashboard</a>
@@ -49,15 +59,35 @@
 
     <script>
         (function () {
+            var root = document.documentElement;
             var button = document.getElementById('theme-switch');
-            if (!button) return;
-            button.addEventListener('click', function () {
-                var current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-                var next = current === 'light' ? 'dark' : 'light';
-                document.documentElement.setAttribute('data-theme', next);
-                localStorage.setItem('skyjson-theme', next);
-                window.dispatchEvent(new CustomEvent('skyjson-theme-changed', { detail: { theme: next } }));
-            });
+            var label = document.getElementById('theme-switch-label');
+
+            function currentTheme() {
+                return root.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+            }
+
+            function updateSwitch(theme) {
+                if (!button || !label) return;
+                var isLight = theme === 'light';
+                button.setAttribute('aria-pressed', String(isLight));
+                label.textContent = isLight ? 'Light mode' : 'Dark mode';
+            }
+
+            function setTheme(theme) {
+                root.setAttribute('data-theme', theme);
+                localStorage.setItem('skyjson-theme', theme);
+                updateSwitch(theme);
+                window.dispatchEvent(new CustomEvent('skyjson-theme-changed', { detail: { theme: theme } }));
+            }
+
+            updateSwitch(currentTheme());
+
+            if (button) {
+                button.addEventListener('click', function () {
+                    setTheme(currentTheme() === 'light' ? 'dark' : 'light');
+                });
+            }
         })();
     </script>
 </body>

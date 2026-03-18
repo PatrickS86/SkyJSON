@@ -5,19 +5,14 @@
         <div class="config-header">
             <div class="config-pill">Settings</div>
             <h1>Configuration</h1>
-            <p class="muted">Configure aircraft.json and optionally receiver.json from a local file or remote URL.</p>
+            <p class="muted">Connect your aircraft source and manage access to the settings page.</p>
         </div>
 
         <form method="post" class="config-form">
             <div class="config-group">
                 <div class="config-group-head">
-<<<<<<< HEAD
                     <h3>Aircraft source</h3>
-                    <p class="muted">Use either a local file or a remote URL. receiver.json is detected automatically next to aircraft.json.</p>
-=======
-                    <h3>Source</h3>
-                    <p class="muted">Choose one source type. Receiver can be filled in manually or auto-derived from aircraft.json.</p>
->>>>>>> 193e9fa7ac8ed66454cdf495777aed0fcdb88694
+                    <p class="muted">Use either a local file or a remote URL.</p>
                 </div>
 
                 <div class="config-grid">
@@ -37,18 +32,6 @@
                     <label class="input-block full-width">
                         <span>Remote URL to aircraft.json</span>
                         <input type="url" name="aircraft_url" value="{{ settings.aircraft_url }}" placeholder="http://192.168.1.50/aircraft.json">
-                    </label>
-
-                    <label class="input-block">
-                        <span>Local path to receiver.json</span>
-                        <input type="text" name="receiver_path" value="{{ settings.receiver_path }}" placeholder="{{ derived.receiver_path or '/run/readsb/receiver.json' }}">
-                        <small class="muted">Leave empty to auto-use {{ derived.receiver_path or 'receiver.json next to aircraft.json' }}</small>
-                    </label>
-
-                    <label class="input-block full-width">
-                        <span>Remote URL to receiver.json</span>
-                        <input type="url" name="receiver_url" value="{{ settings.receiver_url }}" placeholder="{{ derived.receiver_url or 'http://192.168.1.50/receiver.json' }}">
-                        <small class="muted">Leave empty to auto-use {{ derived.receiver_url or 'receiver.json next to aircraft.json' }}</small>
                     </label>
                 </div>
             </div>
