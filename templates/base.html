@@ -1,15 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script>
-        (function () {
-            var stored = localStorage.getItem('skyjson-theme');
-            var theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
-            document.documentElement.setAttribute('data-theme', theme);
-        })();
-    </script>
     <title>{{ app_title }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     {% block extra_head %}{% endblock %}
@@ -22,16 +15,6 @@
                 <div class="subtitle">Lightweight aircraft dashboard</div>
             </div>
             <div class="topbar-actions">
-                <button type="button" class="theme-switch" id="theme-switch" aria-label="Toggle theme" aria-pressed="false">
-                    <span class="theme-switch-track">
-                        <span class="theme-switch-icons" aria-hidden="true">
-                            <span class="theme-switch-icon theme-switch-icon-sun">☀</span>
-                            <span class="theme-switch-icon theme-switch-icon-moon">☾</span>
-                        </span>
-                        <span class="theme-switch-thumb"></span>
-                    </span>
-                    <span class="theme-switch-label" id="theme-switch-label">Dark mode</span>
-                </button>
                 <nav class="nav">
                     {% if is_logged_in %}
                     <a href="{{ url_for('index') }}">Dashboard</a>
@@ -42,6 +25,13 @@
                     <a href="{{ url_for('config') }}">Configuration</a>
                     {% endif %}
                 </nav>
+                <button type="button" class="theme-switch" id="theme-switch" aria-label="Toggle theme" aria-pressed="false">
+                    <span class="theme-switch-track">
+                        <span class="theme-switch-icon theme-switch-icon-sun">☀</span>
+                        <span class="theme-switch-thumb"></span>
+                        <span class="theme-switch-icon theme-switch-icon-moon">☾</span>
+                    </span>
+                </button>
             </div>
         </div>
     </header>
@@ -58,37 +48,38 @@
     </main>
 
     <script>
-        (function () {
-            var root = document.documentElement;
-            var button = document.getElementById('theme-switch');
-            var label = document.getElementById('theme-switch-label');
+    (function () {
+        const root = document.documentElement;
+        const storedTheme = localStorage.getItem('skyjson-theme');
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const initialTheme = storedTheme || (prefersDark ? 'dark' : 'light');
+        root.setAttribute('data-theme', initialTheme);
 
-            function currentTheme() {
-                return root.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-            }
+        function syncToggle() {
+            const toggle = document.getElementById('theme-switch');
+            if (!toggle) return;
+            const isDark = root.getAttribute('data-theme') === 'dark';
+            toggle.setAttribute('aria-pressed', String(isDark));
+            toggle.title = isDark ? 'Switch to light theme' : 'Switch to dark theme';
+        }
 
-            function updateSwitch(theme) {
-                if (!button || !label) return;
-                var isLight = theme === 'light';
-                button.setAttribute('aria-pressed', String(isLight));
-                label.textContent = isLight ? 'Light mode' : 'Dark mode';
-            }
+        window.setSkyJsonTheme = function (theme) {
+            root.setAttribute('data-theme', theme);
+            localStorage.setItem('skyjson-theme', theme);
+            syncToggle();
+            document.dispatchEvent(new CustomEvent('skyjson-theme-changed', { detail: { theme } }));
+        };
 
-            function setTheme(theme) {
-                root.setAttribute('data-theme', theme);
-                localStorage.setItem('skyjson-theme', theme);
-                updateSwitch(theme);
-                window.dispatchEvent(new CustomEvent('skyjson-theme-changed', { detail: { theme: theme } }));
-            }
-
-            updateSwitch(currentTheme());
-
-            if (button) {
-                button.addEventListener('click', function () {
-                    setTheme(currentTheme() === 'light' ? 'dark' : 'light');
-                });
-            }
-        })();
+        document.addEventListener('DOMContentLoaded', function () {
+            syncToggle();
+            const toggle = document.getElementById('theme-switch');
+            if (!toggle) return;
+            toggle.addEventListener('click', function () {
+                const nextTheme = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+                window.setSkyJsonTheme(nextTheme);
+            });
+        });
+    })();
     </script>
 </body>
 </html>
