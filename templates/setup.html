@@ -2,7 +2,7 @@
 {% block content %}
 <div class="card narrow">
     <h1>Welcome to SkyJSON</h1>
-    <p class="muted">Complete the web installer to configure the application. This only needs to be done once.</p>
+    <p class="muted">Complete the web installer to configure the application. Receiver data is optional and will be auto-detected if left empty.</p>
 
     <form method="post" class="form-grid">
         <label>Aircraft data source
@@ -20,7 +20,17 @@
             <input type="url" name="aircraft_url" placeholder="http://192.168.1.50/aircraft.json">
         </label>
 
+<<<<<<< HEAD
         <div class="muted small">receiver.json is read automatically from the same folder or URL as aircraft.json.</div>
+=======
+        <label>Local path to receiver.json
+            <input type="text" name="receiver_path" placeholder="Optional, e.g. /run/readsb/receiver.json">
+        </label>
+
+        <label>Remote URL to receiver.json
+            <input type="url" name="receiver_url" placeholder="Optional, e.g. http://192.168.1.50/receiver.json">
+        </label>
+>>>>>>> 193e9fa7ac8ed66454cdf495777aed0fcdb88694
 
         <label class="checkbox-row">
             <input type="checkbox" name="enable_auth">
