@@ -1,13 +1,75 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ app_title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
 <body>
-<div onclick="toggle()" style="position:absolute;top:10px;right:10px;cursor:pointer;">🌙</div>
-<script>
-function toggle(){
- document.body.classList.toggle("dark");
- localStorage.setItem("theme",document.body.classList.contains("dark")?"dark":"light");
-}
-if(localStorage.getItem("theme")==="dark"){document.body.classList.add("dark");}
-</script>
+    <header class="topbar">
+        <div class="container topbar-inner">
+            <div class="brand-wrap">
+                <div class="brand">✈ {{ app_title }}</div>
+            </div>
+            <div class="topbar-actions">
+                <nav class="nav">
+                    <a href="{{ url_for('index') }}">Dashboard</a>
+                    <a href="{{ url_for('config') }}">Configuration</a>
+                    {% if is_logged_in %}
+                    <a href="{{ url_for('config_logout') }}">Logout</a>
+                    {% endif %}
+                </nav>
+                <button type="button" class="theme-switch" id="theme-switch" aria-label="Toggle theme" title="Toggle theme">
+                    <span class="theme-switch-track">
+                        <span class="theme-switch-icon theme-switch-icon-sun">☀</span>
+                        <span class="theme-switch-thumb"></span>
+                        <span class="theme-switch-icon theme-switch-icon-moon">☾</span>
+                    </span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container page">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+    (function () {
+        const storageKey = 'skyjson-theme';
+        const root = document.documentElement;
+        const switchButton = document.getElementById('theme-switch');
+
+        function applyTheme(theme) {
+            const nextTheme = theme === 'light' ? 'light' : 'dark';
+            root.setAttribute('data-theme', nextTheme);
+            localStorage.setItem(storageKey, nextTheme);
+            document.dispatchEvent(new CustomEvent('skyjson:themechange', { detail: { theme: nextTheme } }));
+        }
+
+        const stored = localStorage.getItem(storageKey);
+        if (stored === 'light' || stored === 'dark') {
+            applyTheme(stored);
+        } else {
+            applyTheme('dark');
+        }
+
+        if (switchButton) {
+            switchButton.addEventListener('click', function () {
+                const current = root.getAttribute('data-theme') || 'dark';
+                applyTheme(current === 'dark' ? 'light' : 'dark');
+            });
+        }
+    })();
+    </script>
 </body>
 </html>
