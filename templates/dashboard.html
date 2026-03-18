@@ -5,11 +5,7 @@
 {% endblock %}
 {% block content %}
 <div class="dashboard-shell">
-<<<<<<< HEAD
     <div class="dashboard-topbar minimal-topbar">
-=======
-    <div class="dashboard-topbar dashboard-topbar-minimal">
->>>>>>> 193e9fa7ac8ed66454cdf495777aed0fcdb88694
         <div class="dashboard-controls">
             <div class="label-toggles">
                 <label><input type="checkbox" id="toggle-registration" checked> reg</label>
@@ -19,13 +15,13 @@
             </div>
 
             <form method="get" class="search-shell" id="search-form">
-                <input type="text" name="q" id="search-input" placeholder="Search flight, reg, type, source" value="{{ request.args.get('q', '') }}">
+                <input type="text" name="q" id="search-input" placeholder="Search aircraft, type, source" value="{{ request.args.get('q', '') }}">
                 <button type="submit" class="btn btn-primary">Search</button>
             </form>
         </div>
     </div>
 
-    <div class="stats-band stats-band-wide">
+    <div class="stats-band">
         <div class="stat-pill">
             <span>Aircraft</span>
             <strong id="stat-total">{{ stats.total }}</strong>
@@ -42,14 +38,6 @@
             <span>Nearest</span>
             <strong id="stat-nearest">{% if stats.nearest_km is not none %}{{ stats.nearest_km }} km{% else %}—{% endif %}</strong>
         </div>
-        <div class="stat-pill">
-            <span>Receiver version</span>
-            <strong id="receiver-version">{{ receiver.version if receiver and receiver.version else '—' }}</strong>
-        </div>
-        <div class="stat-pill">
-            <span>Receiver location</span>
-            <strong id="receiver-location">{% if receiver and receiver.lat is not none and receiver.lon is not none %}{{ '%.4f'|format(receiver.lat) }}, {{ '%.4f'|format(receiver.lon) }}{% else %}—{% endif %}</strong>
-        </div>
     </div>
 
     {% if error %}
@@ -57,36 +45,6 @@
     {% else %}
     <div class="empty-state" id="error-box" hidden></div>
     {% endif %}
-
-    {% if receiver_error %}
-    <div class="receiver-state" id="receiver-error-box">Receiver info unavailable: {{ receiver_error }}</div>
-    {% else %}
-    <div class="receiver-state" id="receiver-error-box" hidden></div>
-    {% endif %}
-
-    <div class="receiver-summary card" id="receiver-summary" {% if not receiver %}hidden{% endif %}>
-        <div class="receiver-summary-head">
-            <div>
-                <h2>Receiver</h2>
-                <p class="muted small" id="receiver-source">{{ receiver.path_or_url if receiver else '' }}</p>
-            </div>
-            <div class="receiver-badges" id="receiver-badges">
-                {% if receiver %}
-                    {% if receiver.readsb %}<span class="status-chip">readsb</span>{% endif %}
-                    {% if receiver.db_server %}<span class="status-chip">dbServer</span>{% endif %}
-                    {% if receiver.bin_craft %}<span class="status-chip">binCraft</span>{% endif %}
-                    {% if receiver.zstd %}<span class="status-chip">zstd</span>{% endif %}
-                    {% if receiver.outline_json %}<span class="status-chip">outlineJson</span>{% endif %}
-                {% endif %}
-            </div>
-        </div>
-        <div class="receiver-grid" id="receiver-grid">
-            <div><span>Refresh</span><strong>{{ receiver.refresh if receiver and receiver.refresh is not none else '—' }}</strong></div>
-            <div><span>History</span><strong>{{ receiver.history if receiver and receiver.history is not none else '—' }}</strong></div>
-            <div><span>JAERO timeout</span><strong>{{ receiver.jaero_timeout if receiver and receiver.jaero_timeout is not none else '—' }}</strong></div>
-            <div><span>Receiver version</span><strong>{{ receiver.version if receiver and receiver.version else '—' }}</strong></div>
-        </div>
-    </div>
 
     <div class="dashboard-main card">
         <section class="map-panel">
@@ -158,15 +116,8 @@ const initialAircraft = {{ aircraft | tojson }};
 const initialReceiver = {{ receiver | tojson }};
 const searchInput = document.getElementById('search-input');
 const errorBox = document.getElementById('error-box');
-const receiverErrorBox = document.getElementById('receiver-error-box');
 const sidebarBody = document.getElementById('sidebar-body');
 const resultsNote = document.getElementById('results-note');
-const receiverSummary = document.getElementById('receiver-summary');
-const receiverGrid = document.getElementById('receiver-grid');
-const receiverBadges = document.getElementById('receiver-badges');
-const receiverSource = document.getElementById('receiver-source');
-const receiverVersionStat = document.getElementById('receiver-version');
-const receiverLocationStat = document.getElementById('receiver-location');
 
 function altitudeColor(altitude) {
     if (altitude === null || altitude === undefined || Number.isNaN(Number(altitude))) return '#94a3b8';
@@ -182,59 +133,27 @@ function currentTheme() {
 }
 
 const map = L.map('aircraft-map', { zoomControl: true, preferCanvas: true });
-<<<<<<< HEAD
 let tileLayer = null;
 
-function buildTileLayer() {
-    const dark = currentTheme() === 'dark';
-    const url = dark
-        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-    const attribution = dark
-        ? '&copy; OpenStreetMap contributors &copy; CARTO'
-        : '&copy; OpenStreetMap contributors';
-    return L.tileLayer(url, { maxZoom: 19, attribution });
-}
-
-function syncTileTheme() {
-    if (tileLayer) {
-        map.removeLayer(tileLayer);
-    }
-    tileLayer = buildTileLayer();
-    tileLayer.addTo(map);
-}
-
-syncTileTheme();
-window.addEventListener('skyjson-theme-changed', syncTileTheme);
-=======
-let activeTileLayer = null;
-
-function createTileLayer(theme) {
-    if (theme === 'light') {
-        return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+function applyTileTheme() {
+    if (tileLayer) map.removeLayer(tileLayer);
+    if (currentTheme() === 'light') {
+        tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; OpenStreetMap contributors'
         });
+    } else {
+        tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+            subdomains: 'abcd'
+        });
     }
-    return L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-        subdomains: 'abcd'
-    });
+    tileLayer.addTo(map);
 }
 
-function applyMapTheme() {
-    const theme = window.SkyJSONTheme ? window.SkyJSONTheme.get() : 'dark';
-    if (activeTileLayer) {
-        map.removeLayer(activeTileLayer);
-    }
-    activeTileLayer = createTileLayer(theme);
-    activeTileLayer.addTo(map);
-}
-
-applyMapTheme();
-window.addEventListener('skyjson-theme-changed', applyMapTheme);
->>>>>>> 193e9fa7ac8ed66454cdf495777aed0fcdb88694
+applyTileTheme();
+window.addEventListener('skyjson-theme-changed', applyTileTheme);
 
 const markerLayer = L.layerGroup().addTo(map);
 const receiverLayer = L.layerGroup().addTo(map);
@@ -322,7 +241,7 @@ function renderReceiver(receiver) {
 
     const marker = L.marker([currentReceiver.lat, currentReceiver.lon], { icon: receiverIcon }).addTo(receiverLayer);
     marker.bindPopup(`
-        <div class="popup-card popup-elevated">
+        <div class="popup-card popup-elevated receiver-popup">
             <div class="popup-topline popup-topline-receiver"></div>
             <div class="popup-header">
                 <div class="popup-title-group">
@@ -462,44 +381,6 @@ function updateStats(stats) {
     document.getElementById('stat-nearest').textContent = stats.nearest_km !== null && stats.nearest_km !== undefined ? `${stats.nearest_km} km` : '—';
 }
 
-function renderReceiver(receiver, receiverError) {
-    if (receiverError) {
-        receiverErrorBox.hidden = false;
-        receiverErrorBox.textContent = `Receiver info unavailable: ${receiverError}`;
-    } else {
-        receiverErrorBox.hidden = true;
-    }
-
-    if (!receiver) {
-        receiverSummary.hidden = true;
-        receiverVersionStat.textContent = '—';
-        receiverLocationStat.textContent = '—';
-        return;
-    }
-
-    receiverSummary.hidden = false;
-    receiverSource.textContent = receiver.path_or_url || '';
-    receiverVersionStat.textContent = receiver.version || '—';
-    receiverLocationStat.textContent = receiver.lat !== null && receiver.lon !== null
-        ? `${Number(receiver.lat).toFixed(4)}, ${Number(receiver.lon).toFixed(4)}`
-        : '—';
-
-    receiverGrid.innerHTML = `
-        <div><span>Refresh</span><strong>${receiver.refresh ?? '—'}</strong></div>
-        <div><span>History</span><strong>${receiver.history ?? '—'}</strong></div>
-        <div><span>JAERO timeout</span><strong>${receiver.jaero_timeout ?? '—'}</strong></div>
-        <div><span>Receiver version</span><strong>${receiver.version || '—'}</strong></div>
-    `;
-
-    const badges = [];
-    if (receiver.readsb) badges.push('readsb');
-    if (receiver.db_server) badges.push('dbServer');
-    if (receiver.bin_craft) badges.push('binCraft');
-    if (receiver.zstd) badges.push('zstd');
-    if (receiver.outline_json) badges.push('outlineJson');
-    receiverBadges.innerHTML = badges.map(label => `<span class="status-chip">${label}</span>`).join('');
-}
-
 async function refreshAircraft(refit=false) {
     const q = searchInput.value.trim();
     const url = q ? `/api/aircraft?q=${encodeURIComponent(q)}` : '/api/aircraft';
@@ -517,7 +398,6 @@ async function refreshAircraft(refit=false) {
         renderSidebar(data.aircraft || []);
         renderMap(data.map_aircraft || [], data.receiver || {}, refit);
         updateStats(data.stats || {});
-        renderReceiver(data.receiver || null, data.receiver_error || null);
     } catch (err) {
         errorBox.hidden = false;
         errorBox.textContent = 'Failed to refresh live aircraft data.';
@@ -550,7 +430,6 @@ for (const id of ['toggle-registration', 'toggle-callsign', 'toggle-type', 'togg
 
 renderMap(initialMapAircraft, initialReceiver, true);
 renderSidebar(initialAircraft);
-renderReceiver(initialReceiver, {{ receiver_error | tojson }});
 map.on('click', () => {
     selectedAircraftHex = null;
 });
