@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import re
 import shlex
@@ -217,30 +218,81 @@ def get_source_settings() -> Dict[str, str]:
     }
 
 
-def read_payload_from_file(file_path: str) -> Dict[str, Any]:
+def read_json_from_file(file_path: str) -> Dict[str, Any]:
     if not file_path:
-        return {"error": "No local aircraft.json path is configured yet.", "aircraft": [], "now": None}
+        return {"error": "No local aircraft.json path is configured yet."}
     path = Path(file_path)
     if not path.exists():
-        return {"error": f"Configured file was not found: {file_path}", "aircraft": [], "now": None}
+        return {"error": f"Configured file was not found: {file_path}"}
     try:
         with path.open("r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as exc:
-        return {"error": f"Failed to read local aircraft data: {exc}", "aircraft": [], "now": None}
+        return {"error": f"Failed to read local JSON data: {exc}"}
 
 
-def read_payload_from_url(url: str) -> Dict[str, Any]:
+def read_json_from_url(url: str) -> Dict[str, Any]:
     if not url:
-        return {"error": "No remote aircraft.json URL is configured yet.", "aircraft": [], "now": None}
+        return {"error": "No remote aircraft.json URL is configured yet."}
     try:
         response = requests.get(url, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         return response.json()
     except requests.RequestException as exc:
-        return {"error": f"Failed to fetch remote aircraft data: {exc}", "aircraft": [], "now": None}
+        return {"error": f"Failed to fetch remote JSON data: {exc}"}
     except ValueError as exc:
-        return {"error": f"Remote source did not return valid JSON: {exc}", "aircraft": [], "now": None}
+        return {"error": f"Remote source did not return valid JSON: {exc}"}
+
+
+def infer_receiver_source(settings: Dict[str, str]) -> Dict[str, Optional[str]]:
+    if settings["source_type"] == "url":
+        aircraft_url = settings["aircraft_url"]
+        if not aircraft_url:
+            return {"source_type": "url", "value": None}
+        receiver_url = re.sub(r"aircraft\.json(?:\?.*)?$", "receiver.json", aircraft_url)
+        if receiver_url == aircraft_url:
+            receiver_url = aircraft_url.rstrip("/") + "/receiver.json"
+        return {"source_type": "url", "value": receiver_url}
+
+    aircraft_path = settings["aircraft_path"]
+    if not aircraft_path:
+        return {"source_type": "file", "value": None}
+    receiver_path = str(Path(aircraft_path).with_name("receiver.json"))
+    return {"source_type": "file", "value": receiver_path}
+
+
+def load_receiver() -> Dict[str, Any]:
+    settings = get_source_settings()
+    receiver_source = infer_receiver_source(settings)
+    source_type = receiver_source["source_type"]
+    value = receiver_source["value"]
+
+    if not value:
+        return {"available": False, "lat": None, "lon": None}
+
+    if source_type == "url":
+        payload = read_json_from_url(value)
+    else:
+        payload = read_json_from_file(value)
+
+    if payload.get("error"):
+        return {
+            "available": False,
+            "lat": None,
+            "lon": None,
+            "source": value,
+            "source_type": source_type,
+        }
+
+    lat = safe_float(payload.get("lat"))
+    lon = safe_float(payload.get("lon"))
+    return {
+        "available": lat is not None and lon is not None,
+        "lat": lat,
+        "lon": lon,
+        "source": value,
+        "source_type": source_type,
+    }
 
 
 REGISTRATION_PREFIX_FLAGS = [
@@ -287,19 +339,39 @@ def detect_signal_source(item: Dict[str, Any]) -> str:
     return "Unknown"
 
 
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    radius = 6371.0
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    return radius * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
+
+
 def load_aircraft() -> Dict[str, Any]:
     settings = get_source_settings()
     if settings["source_type"] == "url":
-        payload = read_payload_from_url(settings["aircraft_url"])
+        payload = read_json_from_url(settings["aircraft_url"])
     else:
-        payload = read_payload_from_file(settings["aircraft_path"])
+        payload = read_json_from_file(settings["aircraft_path"])
+
+    receiver = load_receiver()
+    receiver_lat = receiver.get("lat")
+    receiver_lon = receiver.get("lon")
 
     if payload.get("error"):
-        return payload
+        return {"error": payload["error"], "aircraft": [], "now": None, "receiver": receiver}
 
     aircraft = []
     for item in payload.get("aircraft", []):
         country_info = get_country_info(item.get("hex", "-"), item.get("r", ""))
+        lat = safe_float(item.get("lat"))
+        lon = safe_float(item.get("lon"))
+        distance_km = None
+        if lat is not None and lon is not None and receiver_lat is not None and receiver_lon is not None:
+            distance_km = round(haversine_km(receiver_lat, receiver_lon, lat, lon), 1)
+
         aircraft.append(
             {
                 "hex": item.get("hex", "-"),
@@ -310,28 +382,53 @@ def load_aircraft() -> Dict[str, Any]:
                 "alt_baro": safe_int(item.get("alt_baro")),
                 "gs": safe_float(item.get("gs")),
                 "track": safe_float(item.get("track")),
-                "lat": safe_float(item.get("lat")),
-                "lon": safe_float(item.get("lon")),
+                "lat": lat,
+                "lon": lon,
                 "messages": safe_int(item.get("messages")),
                 "country": country_info["country"],
                 "flag": country_info["flag"],
+                "distance_km": distance_km,
             }
         )
 
     aircraft.sort(key=lambda x: ((x["flight"] or x["registration"] or x["hex"]).lower(), x["hex"]))
-    return {"error": None, "aircraft": aircraft, "now": payload.get("now")}
+    return {"error": None, "aircraft": aircraft, "now": payload.get("now"), "receiver": receiver}
 
 
 def summarize_aircraft(aircraft: List[Dict[str, Any]]) -> Dict[str, Any]:
     visible_positions = [a for a in aircraft if a["lat"] is not None and a["lon"] is not None]
     altitudes = [a["alt_baro"] for a in aircraft if a["alt_baro"] is not None]
     speeds = [a["gs"] for a in aircraft if a["gs"] is not None]
+    distances = [a["distance_km"] for a in aircraft if a["distance_km"] is not None]
     return {
         "total": len(aircraft),
         "with_position": len(visible_positions),
         "avg_altitude": round(sum(altitudes) / len(altitudes)) if altitudes else None,
         "avg_speed": round(sum(speeds) / len(speeds), 1) if speeds else None,
+        "nearest_km": min(distances) if distances else None,
     }
+
+
+def build_map_aircraft(aircraft: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [
+        {
+            "hex": a["hex"],
+            "flight": a["flight"],
+            "registration": a["registration"],
+            "type": a["type"],
+            "signal_source": a["signal_source"],
+            "alt_baro": a["alt_baro"],
+            "gs": a["gs"],
+            "track": a["track"],
+            "lat": a["lat"],
+            "lon": a["lon"],
+            "country": a["country"],
+            "flag": a["flag"],
+            "distance_km": a["distance_km"],
+        }
+        for a in aircraft
+        if a["lat"] is not None and a["lon"] is not None
+    ]
 
 
 @app.route("/")
@@ -353,34 +450,16 @@ def index():
             or query in (a["signal_source"] or "").lower()
         ]
 
-    map_aircraft = [
-        {
-            "hex": a["hex"],
-            "flight": a["flight"],
-            "registration": a["registration"],
-            "type": a["type"],
-            "signal_source": a["signal_source"],
-            "alt_baro": a["alt_baro"],
-            "gs": a["gs"],
-            "track": a["track"],
-            "lat": a["lat"],
-            "lon": a["lon"],
-            "country": a["country"],
-            "flag": a["flag"],
-        }
-        for a in aircraft
-        if a["lat"] is not None and a["lon"] is not None
-    ]
-
     return render_template(
         "dashboard.html",
         aircraft=aircraft,
-        map_aircraft=map_aircraft,
+        map_aircraft=build_map_aircraft(aircraft),
         total_results=len(aircraft),
         stats=stats,
         error=data["error"],
         query=query,
         refresh_interval=1,
+        receiver=data.get("receiver", {"available": False, "lat": None, "lon": None}),
     )
 
 
@@ -407,24 +486,8 @@ def api_aircraft():
         "stats": summarize_aircraft(aircraft),
         "total_results": len(aircraft),
         "aircraft": aircraft,
-        "map_aircraft": [
-            {
-                "hex": a["hex"],
-                "flight": a["flight"],
-                "registration": a["registration"],
-                "type": a["type"],
-                "signal_source": a["signal_source"],
-                "alt_baro": a["alt_baro"],
-                "gs": a["gs"],
-                "track": a["track"],
-                "lat": a["lat"],
-                "lon": a["lon"],
-                "country": a["country"],
-                "flag": a["flag"],
-            }
-            for a in aircraft
-            if a["lat"] is not None and a["lon"] is not None
-        ],
+        "map_aircraft": build_map_aircraft(aircraft),
+        "receiver": data.get("receiver", {"available": False, "lat": None, "lon": None}),
     }
 
 

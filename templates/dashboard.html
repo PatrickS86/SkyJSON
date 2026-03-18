@@ -1,4 +1,3 @@
-
 {% extends 'base.html' %}
 {% block extra_head %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
@@ -6,12 +5,7 @@
 {% endblock %}
 {% block content %}
 <div class="dashboard-shell">
-    <div class="dashboard-topbar">
-        <div class="dashboard-title">
-            <h1>SkyJSON</h1>
-            <p class="muted">Real-time aircraft view with live map updates.</p>
-        </div>
-
+    <div class="dashboard-topbar minimal-topbar">
         <div class="dashboard-controls">
             <div class="label-toggles">
                 <label><input type="checkbox" id="toggle-registration" checked> reg</label>
@@ -41,8 +35,8 @@
             <strong id="stat-alt">{{ stats.avg_altitude if stats.avg_altitude is not none else '—' }}</strong>
         </div>
         <div class="stat-pill">
-            <span>Avg Speed</span>
-            <strong id="stat-speed">{{ stats.avg_speed if stats.avg_speed is not none else '—' }}</strong>
+            <span>Nearest</span>
+            <strong id="stat-nearest">{% if stats.nearest_km is not none %}{{ stats.nearest_km }} km{% else %}—{% endif %}</strong>
         </div>
     </div>
 
@@ -62,6 +56,7 @@
                 <span><i class="legend-dot alt-mid"></i> medium</span>
                 <span><i class="legend-dot alt-high"></i> high</span>
                 <span><i class="legend-dot alt-very-high"></i> very high</span>
+                <span><i class="legend-dot receiver-dot"></i> receiver</span>
             </div>
         </section>
 
@@ -83,6 +78,7 @@
                             <th class="sortable" data-sort="signal_source">Src</th>
                             <th class="sortable number" data-sort="alt_baro">Alt</th>
                             <th class="sortable number" data-sort="gs">Spd</th>
+                            <th class="sortable number" data-sort="distance_km">Dist</th>
                         </tr>
                     </thead>
                     <tbody id="sidebar-body">
@@ -102,9 +98,10 @@
                             <td><span class="source-badge source-{{ a.signal_source|lower|replace('-', '')|replace(' ', '') }}">{{ a.signal_source }}</span></td>
                             <td class="number">{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
                             <td class="number">{{ a.gs if a.gs is not none else '—' }}</td>
+                            <td class="number">{% if a.distance_km is not none %}{{ a.distance_km }}{% else %}—{% endif %}</td>
                         </tr>
                     {% else %}
-                        <tr><td colspan="6" class="muted center">No aircraft matched your query.</td></tr>
+                        <tr><td colspan="7" class="muted center">No aircraft matched your query.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
@@ -116,6 +113,7 @@
 <script>
 const initialMapAircraft = {{ map_aircraft | tojson }};
 const initialAircraft = {{ aircraft | tojson }};
+const initialReceiver = {{ receiver | tojson }};
 const searchInput = document.getElementById('search-input');
 const errorBox = document.getElementById('error-box');
 const sidebarBody = document.getElementById('sidebar-body');
@@ -130,16 +128,41 @@ function altitudeColor(altitude) {
     return '#8b5cf6';
 }
 
+function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+
 const map = L.map('aircraft-map', { zoomControl: true, preferCanvas: true });
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+let tileLayer = null;
+
+function buildTileLayer() {
+    const dark = currentTheme() === 'dark';
+    const url = dark
+        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const attribution = dark
+        ? '&copy; OpenStreetMap contributors &copy; CARTO'
+        : '&copy; OpenStreetMap contributors';
+    return L.tileLayer(url, { maxZoom: 19, attribution });
+}
+
+function syncTileTheme() {
+    if (tileLayer) {
+        map.removeLayer(tileLayer);
+    }
+    tileLayer = buildTileLayer();
+    tileLayer.addTo(map);
+}
+
+syncTileTheme();
+window.addEventListener('skyjson-theme-changed', syncTileTheme);
 
 const markerLayer = L.layerGroup().addTo(map);
+const receiverLayer = L.layerGroup().addTo(map);
 let firstFitDone = false;
 let currentMapAircraft = initialMapAircraft;
 let currentAircraft = initialAircraft;
+let currentReceiver = initialReceiver;
 let sortState = { key: 'flight', dir: 'asc' };
 let selectedAircraftHex = null;
 let refreshingMap = false;
@@ -205,11 +228,48 @@ function focusAircraftOnMap(hex) {
     }
 }
 
-function renderMap(aircraftList, refit=false) {
+function renderReceiver(receiver) {
+    currentReceiver = receiver || { available: false, lat: null, lon: null };
+    receiverLayer.clearLayers();
+    if (!currentReceiver.available || currentReceiver.lat === null || currentReceiver.lon === null) return;
+
+    const receiverIcon = L.divIcon({
+        className: 'receiver-marker-wrapper',
+        html: '<div class="receiver-marker">📡</div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+        popupAnchor: [0, -14]
+    });
+
+    const marker = L.marker([currentReceiver.lat, currentReceiver.lon], { icon: receiverIcon }).addTo(receiverLayer);
+    marker.bindPopup(`
+        <div class="popup-card popup-elevated">
+            <div class="popup-topline popup-topline-receiver"></div>
+            <div class="popup-header">
+                <div class="popup-title-group">
+                    <div class="popup-title">Receiver</div>
+                    <div class="popup-subtitle">Antenna location</div>
+                </div>
+                <div class="popup-flag">📡</div>
+            </div>
+            <div class="popup-grid">
+                <div><span>Latitude</span><strong>${currentReceiver.lat}</strong></div>
+                <div><span>Longitude</span><strong>${currentReceiver.lon}</strong></div>
+            </div>
+        </div>
+    `);
+}
+
+function renderMap(aircraftList, receiver, refit=false) {
     currentMapAircraft = aircraftList;
     refreshingMap = true;
     markerLayer.clearLayers();
+    renderReceiver(receiver);
     const bounds = [];
+
+    if (currentReceiver && currentReceiver.available && currentReceiver.lat !== null && currentReceiver.lon !== null) {
+        bounds.push([currentReceiver.lat, currentReceiver.lon]);
+    }
 
     for (const aircraft of aircraftList) {
         const heading = Number.isFinite(aircraft.track) ? aircraft.track : 0;
@@ -261,7 +321,7 @@ function renderMap(aircraftList, refit=false) {
                     <div><span>Source</span><strong>${aircraft.signal_source || '—'}</strong></div>
                     <div><span>Altitude</span><strong>${aircraft.alt_baro ?? '—'}</strong></div>
                     <div><span>Speed</span><strong>${aircraft.gs ?? '—'}</strong></div>
-                    <div><span>Track</span><strong>${aircraft.track ?? '—'}</strong></div>
+                    <div><span>Distance</span><strong>${aircraft.distance_km ?? '—'} km</strong></div>
                 </div>
             </div>
         `);
@@ -285,7 +345,7 @@ function renderSidebar(aircraft) {
     currentAircraft = aircraft;
     const sortedAircraft = sortAircraft(aircraft);
     if (!sortedAircraft.length) {
-        sidebarBody.innerHTML = '<tr><td colspan="6" class="muted center">No aircraft matched your query.</td></tr>';
+        sidebarBody.innerHTML = '<tr><td colspan="7" class="muted center">No aircraft matched your query.</td></tr>';
         resultsNote.textContent = '0 aircraft shown';
         return;
     }
@@ -306,6 +366,7 @@ function renderSidebar(aircraft) {
             <td><span class="source-badge source-${String(a.signal_source || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '')}">${a.signal_source || 'Unknown'}</span></td>
             <td class="number">${a.alt_baro ?? '—'}</td>
             <td class="number">${a.gs ?? '—'}</td>
+            <td class="number">${a.distance_km ?? '—'}</td>
         </tr>
     `).join('');
 
@@ -319,7 +380,7 @@ function updateStats(stats) {
     document.getElementById('stat-total').textContent = stats.total ?? '—';
     document.getElementById('stat-visible').textContent = stats.with_position ?? '—';
     document.getElementById('stat-alt').textContent = stats.avg_altitude ?? '—';
-    document.getElementById('stat-speed').textContent = stats.avg_speed ?? '—';
+    document.getElementById('stat-nearest').textContent = stats.nearest_km !== null && stats.nearest_km !== undefined ? `${stats.nearest_km} km` : '—';
 }
 
 async function refreshAircraft(refit=false) {
@@ -337,7 +398,7 @@ async function refreshAircraft(refit=false) {
 
         errorBox.hidden = true;
         renderSidebar(data.aircraft || []);
-        renderMap(data.map_aircraft || [], refit);
+        renderMap(data.map_aircraft || [], data.receiver || {}, refit);
         updateStats(data.stats || {});
     } catch (err) {
         errorBox.hidden = false;
@@ -366,10 +427,10 @@ document.querySelectorAll('.list-table thead th.sortable').forEach(th => {
 updateSortHeaders();
 
 for (const id of ['toggle-registration', 'toggle-callsign', 'toggle-type', 'toggle-altitude']) {
-    document.getElementById(id).addEventListener('change', () => renderMap(currentMapAircraft, false));
+    document.getElementById(id).addEventListener('change', () => renderMap(currentMapAircraft, currentReceiver, false));
 }
 
-renderMap(initialMapAircraft, true);
+renderMap(initialMapAircraft, initialReceiver, true);
 renderSidebar(initialAircraft);
 map.on('click', () => {
     selectedAircraftHex = null;

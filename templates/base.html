@@ -1,10 +1,16 @@
-
 <!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ app_title }}</title>
+    <script>
+        (function () {
+            const stored = localStorage.getItem('skyjson-theme');
+            const theme = stored === 'light' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     {% block extra_head %}{% endblock %}
 </head>
@@ -15,16 +21,22 @@
                 <div class="brand">✈ {{ app_title }}</div>
                 <div class="subtitle">Lightweight aircraft dashboard</div>
             </div>
-            <nav class="nav">
-                {% if is_logged_in %}
-                <a href="{{ url_for('index') }}">Dashboard</a>
-                <a href="{{ url_for('config') }}">Configuration</a>
-                <a href="{{ url_for('config_logout') }}">Logout</a>
-                {% else %}
-                <a href="{{ url_for('index') }}">Dashboard</a>
-                <a href="{{ url_for('config') }}">Configuration</a>
-                {% endif %}
-            </nav>
+            <div class="topbar-actions">
+                <button type="button" class="theme-switch" id="theme-switch" aria-label="Toggle dark and light theme">
+                    <span class="theme-switch-icon">◐</span>
+                    <span class="theme-switch-label">Theme</span>
+                </button>
+                <nav class="nav">
+                    {% if is_logged_in %}
+                    <a href="{{ url_for('index') }}">Dashboard</a>
+                    <a href="{{ url_for('config') }}">Configuration</a>
+                    <a href="{{ url_for('config_logout') }}">Logout</a>
+                    {% else %}
+                    <a href="{{ url_for('index') }}">Dashboard</a>
+                    <a href="{{ url_for('config') }}">Configuration</a>
+                    {% endif %}
+                </nav>
+            </div>
         </div>
     </header>
 
@@ -38,5 +50,25 @@
         {% endwith %}
         {% block content %}{% endblock %}
     </main>
+
+    <script>
+        (function () {
+            const root = document.documentElement;
+            const button = document.getElementById('theme-switch');
+
+            function applyTheme(theme) {
+                root.setAttribute('data-theme', theme);
+                localStorage.setItem('skyjson-theme', theme);
+                window.dispatchEvent(new CustomEvent('skyjson-theme-changed', { detail: { theme } }));
+            }
+
+            if (button) {
+                button.addEventListener('click', function () {
+                    const nextTheme = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+                    applyTheme(nextTheme);
+                });
+            }
+        })();
+    </script>
 </body>
 </html>
