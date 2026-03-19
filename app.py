@@ -19,7 +19,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "config.db"
 VERSION_FILE = BASE_DIR / "VERSION"
 DEFAULT_SECRET = "change-me-skyjson-secret"
-APP_VERSION = "1.8.6"
+APP_VERSION = "1.8.7"
 REQUEST_TIMEOUT = 10
 GITHUB_SPONSOR_URL = "https://github.com/sponsors/PatrickS86"
 
@@ -40,6 +40,17 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS polar_points (
+                receiver_key TEXT NOT NULL,
+                bearing_bucket INTEGER NOT NULL,
+                distance_km REAL NOT NULL,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (receiver_key, bearing_bucket)
             )
             """
         )
@@ -324,6 +335,74 @@ def haversine_km(lat1: Optional[float], lon1: Optional[float], lat2: Optional[fl
     return round(2 * r * math.atan2(math.sqrt(a), math.sqrt(1 - a)), 1)
 
 
+def bearing_degrees(lat1: Optional[float], lon1: Optional[float], lat2: Optional[float], lon2: Optional[float]) -> Optional[float]:
+    if None in (lat1, lon1, lat2, lon2):
+        return None
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dl = math.radians(lon2 - lon1)
+    y = math.sin(dl) * math.cos(p2)
+    x = math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl)
+    brng = math.degrees(math.atan2(y, x))
+    return (brng + 360.0) % 360.0
+
+
+def receiver_key(receiver: Dict[str, Any]) -> Optional[str]:
+    lat = receiver.get("lat")
+    lon = receiver.get("lon")
+    if lat is None or lon is None:
+        return None
+    return f"{round(lat, 4)}:{round(lon, 4)}"
+
+
+def update_polar_points(receiver: Dict[str, Any], aircraft: List[Dict[str, Any]]) -> None:
+    key = receiver_key(receiver)
+    if not key:
+        return
+    now_ts = int(time.time())
+    with get_db() as conn:
+        for a in aircraft:
+            if a["lat"] is None or a["lon"] is None or a["dist_km"] is None:
+                continue
+            bearing = bearing_degrees(receiver["lat"], receiver["lon"], a["lat"], a["lon"])
+            if bearing is None:
+                continue
+            bucket = int(round(bearing)) % 360
+            row = conn.execute(
+                "SELECT distance_km FROM polar_points WHERE receiver_key = ? AND bearing_bucket = ?",
+                (key, bucket),
+            ).fetchone()
+            new_dist = float(a["dist_km"])
+            if row is None or new_dist > float(row["distance_km"]):
+                conn.execute(
+                    """
+                    INSERT INTO polar_points (receiver_key, bearing_bucket, distance_km, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(receiver_key, bearing_bucket)
+                    DO UPDATE SET distance_km = excluded.distance_km, updated_at = excluded.updated_at
+                    """,
+                    (key, bucket, new_dist, now_ts),
+                )
+        conn.commit()
+
+
+def get_polar_points(receiver: Dict[str, Any]) -> List[Dict[str, Any]]:
+    key = receiver_key(receiver)
+    if not key:
+        return []
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT bearing_bucket, distance_km
+            FROM polar_points
+            WHERE receiver_key = ?
+            ORDER BY bearing_bucket ASC
+            """,
+            (key,),
+        ).fetchall()
+    return [{"bearing": int(r["bearing_bucket"]), "distance_km": float(r["distance_km"])} for r in rows]
+
+
 def load_aircraft() -> Dict[str, Any]:
     settings = get_source_settings()
     if settings["source_type"] == "url":
@@ -332,7 +411,13 @@ def load_aircraft() -> Dict[str, Any]:
         payload = read_payload_from_file(settings["aircraft_path"])
 
     if payload.get("error"):
-        return {"error": payload["error"], "aircraft": [], "now": None, "receiver": {"lat": None, "lon": None}}
+        return {
+            "error": payload["error"],
+            "aircraft": [],
+            "now": None,
+            "receiver": {"lat": None, "lon": None},
+            "polar_points": [],
+        }
 
     receiver = read_receiver()
     aircraft: List[Dict[str, Any]] = []
@@ -359,8 +444,17 @@ def load_aircraft() -> Dict[str, Any]:
             }
         )
 
+    update_polar_points(receiver, aircraft)
+    polar_points = get_polar_points(receiver)
+
     aircraft.sort(key=lambda x: ((x["flight"] or x["registration"] or x["hex"]).lower(), x["hex"]))
-    return {"error": None, "aircraft": aircraft, "now": payload.get("now"), "receiver": receiver}
+    return {
+        "error": None,
+        "aircraft": aircraft,
+        "now": payload.get("now"),
+        "receiver": receiver,
+        "polar_points": polar_points,
+    }
 
 
 def summarize_aircraft(aircraft: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -418,6 +512,7 @@ def index():
         "dashboard.html",
         aircraft=aircraft,
         map_aircraft=map_aircraft,
+        polar_points=data.get("polar_points", []),
         total_results=len(aircraft),
         stats=stats,
         error=data["error"],
@@ -450,6 +545,7 @@ def api_aircraft():
         "stats": summarize_aircraft(aircraft),
         "total_results": len(aircraft),
         "receiver": data.get("receiver", {"lat": None, "lon": None}),
+        "polar_points": data.get("polar_points", []),
         "aircraft": aircraft,
         "map_aircraft": [
             {
