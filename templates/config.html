@@ -5,14 +5,14 @@
         <div class="config-header">
             <div class="config-pill">Settings</div>
             <h1>Configuration</h1>
-            <p class="muted">Connect aircraft.json and receiver.json, then manage access to the settings page.</p>
+            <p class="muted">Connect your aircraft source and manage access to the settings page.</p>
         </div>
 
         <form method="post" class="config-form">
             <div class="config-group">
                 <div class="config-group-head">
                     <h3>Aircraft source</h3>
-                    <p class="muted">Use either a local file or a remote URL.</p>
+                    <p class="muted">Use either a local file or a remote URL. Receiver data can be configured separately.</p>
                 </div>
 
                 <div class="config-grid">
@@ -33,16 +33,7 @@
                         <span>Remote URL to aircraft.json</span>
                         <input type="url" name="aircraft_url" value="{{ settings.aircraft_url }}" placeholder="http://192.168.1.50/aircraft.json">
                     </label>
-                </div>
-            </div>
 
-            <div class="config-group">
-                <div class="config-group-head">
-                    <h3>Receiver source</h3>
-                    <p class="muted">Optional explicit receiver.json path or URL. Leave empty to auto-derive it from aircraft.json.</p>
-                </div>
-
-                <div class="config-grid">
                     <label class="input-block">
                         <span>Local path to receiver.json</span>
                         <input type="text" name="receiver_path" value="{{ settings.receiver_path }}" placeholder="/run/readsb/receiver.json">

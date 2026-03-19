@@ -1,3 +1,4 @@
+
 {% extends 'base.html' %}
 {% block extra_head %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
@@ -5,24 +6,28 @@
 {% endblock %}
 {% block content %}
 <div class="dashboard-shell">
-    <div class="dashboard-topbar minimal">
+    <div class="dashboard-topbar">
+        <div class="dashboard-title">
+            <h1 class="minimal-title">SkyJSON</h1>
+            
+        </div>
+
         <div class="dashboard-controls">
             <div class="label-toggles">
                 <label><input type="checkbox" id="toggle-registration" checked> reg</label>
                 <label><input type="checkbox" id="toggle-callsign" checked> callsign</label>
                 <label><input type="checkbox" id="toggle-type"> type</label>
                 <label><input type="checkbox" id="toggle-altitude"> alt</label>
-                <label><input type="checkbox" id="toggle-polar" checked> polar</label>
             </div>
 
             <form method="get" class="search-shell" id="search-form">
-                <input type="text" name="q" id="search-input" placeholder="Search flight, reg, type, source" value="{{ request.args.get('q', '') }}">
+                <input type="text" name="q" id="search-input" placeholder="Search aircraft, type, source" value="{{ request.args.get('q', '') }}">
                 <button type="submit" class="btn btn-primary">Search</button>
             </form>
         </div>
     </div>
 
-    <div class="stats-band stats-band-five">
+    <div class="stats-band">
         <div class="stat-pill">
             <span>Aircraft</span>
             <strong id="stat-total">{{ stats.total }}</strong>
@@ -39,10 +44,6 @@
             <span>Avg Speed</span>
             <strong id="stat-speed">{{ stats.avg_speed if stats.avg_speed is not none else '—' }}</strong>
         </div>
-        <div class="stat-pill">
-            <span>Nearest</span>
-            <strong id="stat-nearest">{{ stats.nearest if stats.nearest is not none else '—' }}</strong>
-        </div>
     </div>
 
     {% if error %}
@@ -57,11 +58,11 @@
                 <div id="aircraft-map"></div>
             </div>
             <div class="legend-row">
+                {% if receiver and receiver.lat is not none and receiver.lon is not none %}<span><i class="legend-dot alt-low"></i> receiver active</span>{% endif %}
                 <span><i class="legend-dot alt-low"></i> low</span>
                 <span><i class="legend-dot alt-mid"></i> medium</span>
                 <span><i class="legend-dot alt-high"></i> high</span>
                 <span><i class="legend-dot alt-very-high"></i> very high</span>
-                <span><i class="legend-line"></i> polar</span>
             </div>
         </section>
 
@@ -83,10 +84,32 @@
                             <th class="sortable" data-sort="signal_source">Src</th>
                             <th class="sortable number" data-sort="alt_baro">Alt</th>
                             <th class="sortable number" data-sort="gs">Spd</th>
-                            <th class="sortable number" data-sort="distance_km">Dist</th>
+                            <th class="sortable number" data-sort="dist_km">Dist</th>
                         </tr>
                     </thead>
-                    <tbody id="sidebar-body"></tbody>
+                    <tbody id="sidebar-body">
+                    {% for a in aircraft %}
+                        <tr class="list-row" data-hex="{{ a.hex }}">
+                            <td>
+                                <div class="flight-cell">
+                                    <span class="flag-badge small-flag" title="{{ a.country }}">{{ a.flag }}</span>
+                                    <div class="flight-copy">
+                                        <div class="flight-name">{{ a.flight or a.hex }}</div>
+                                        <div class="flight-hex">{{ a.hex }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ a.registration or '—' }}</td>
+                            <td>{{ a.type or '—' }}</td>
+                            <td><span class="source-badge source-{{ a.signal_source|lower|replace('-', '')|replace(' ', '') }}">{{ a.signal_source }}</span></td>
+                            <td class="number">{{ a.alt_baro if a.alt_baro is not none else '—' }}</td>
+                            <td class="number">{{ a.gs if a.gs is not none else '—' }}</td>
+                            <td class="number">{{ a.dist_km if a.dist_km is not none else '—' }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="7" class="muted center">No aircraft matched your query.</td></tr>
+                    {% endfor %}
+                    </tbody>
                 </table>
             </div>
         </aside>
@@ -96,14 +119,10 @@
 <script>
 const initialMapAircraft = {{ map_aircraft | tojson }};
 const initialAircraft = {{ aircraft | tojson }};
-const initialReceiver = {{ receiver | tojson }};
-const initialPolarPoints = {{ polar_points | tojson }};
 const searchInput = document.getElementById('search-input');
 const errorBox = document.getElementById('error-box');
 const sidebarBody = document.getElementById('sidebar-body');
 const resultsNote = document.getElementById('results-note');
-const togglePolar = document.getElementById('toggle-polar');
-const polarStorageKey = 'skyjson-polar-visible';
 
 function altitudeColor(altitude) {
     if (altitude === null || altitude === undefined || Number.isNaN(Number(altitude))) return '#94a3b8';
@@ -115,41 +134,24 @@ function altitudeColor(altitude) {
 }
 
 const map = L.map('aircraft-map', { zoomControl: true, preferCanvas: true });
-const lightTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap contributors'
-});
-const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
-});
+}).addTo(map);
 
 const markerLayer = L.layerGroup().addTo(map);
-const polarLayer = L.layerGroup().addTo(map);
+const receiverData = {{ receiver | tojson }};
 let receiverMarker = null;
-let polarPolyline = null;
+if (receiverData && receiverData.lat !== null && receiverData.lon !== null) {
+    receiverMarker = L.circleMarker([receiverData.lat, receiverData.lon], {radius: 7, color: "#2563eb", fillColor: "#60a5fa", fillOpacity: 0.9, weight: 2}).addTo(map);
+    receiverMarker.bindPopup("Receiver");
+}
 let firstFitDone = false;
 let currentMapAircraft = initialMapAircraft;
 let currentAircraft = initialAircraft;
-let currentReceiver = initialReceiver;
-let currentPolarPoints = initialPolarPoints;
 let sortState = { key: 'flight', dir: 'asc' };
 let selectedAircraftHex = null;
 let refreshingMap = false;
-
-function currentTheme() {
-    return document.documentElement.getAttribute('data-theme') || 'dark';
-}
-
-function applyMapTheme() {
-    if (currentTheme() === 'light') {
-        if (map.hasLayer(darkTiles)) map.removeLayer(darkTiles);
-        if (!map.hasLayer(lightTiles)) lightTiles.addTo(map);
-    } else {
-        if (map.hasLayer(lightTiles)) map.removeLayer(lightTiles);
-        if (!map.hasLayer(darkTiles)) darkTiles.addTo(map);
-    }
-}
 
 function compareValues(a, b, key) {
     const av = a[key];
@@ -207,59 +209,16 @@ function focusAircraftOnMap(hex) {
     });
     if (foundMarker) {
         selectedAircraftHex = hex;
-        map.setView([entry.lat, entry.lon], Math.max(map.getZoom(), 10), { animate: true });
+        map.setView([entry.lat, entry.lon], Math.max(map.getZoom(), 12), { animate: true });
         foundMarker.openPopup();
     }
 }
 
-function renderReceiver(receiver) {
-    if (receiverMarker) {
-        map.removeLayer(receiverMarker);
-        receiverMarker = null;
-    }
-    if (!receiver || receiver.lat === null || receiver.lon === null) return;
-
-    const receiverIcon = L.divIcon({
-        className: 'receiver-marker-wrapper',
-        html: '<div class="receiver-marker">●</div>',
-        iconSize: [18, 18],
-        iconAnchor: [9, 9]
-    });
-    receiverMarker = L.marker([receiver.lat, receiver.lon], { icon: receiverIcon }).addTo(map);
-    receiverMarker.bindPopup('<div class="popup-card compact"><div class="popup-title">Receiver</div></div>');
-}
-
-function renderPolar(points, receiver) {
-    polarLayer.clearLayers();
-    if (!togglePolar.checked || !receiver || receiver.lat === null || receiver.lon === null || !Array.isArray(points) || points.length < 2) return;
-
-    const latlngs = points
-        .filter(p => p && p.lat !== null && p.lon !== null)
-        .map(p => [p.lat, p.lon]);
-
-    if (latlngs.length < 2) return;
-
-    polarPolyline = L.polyline(latlngs, {
-        color: '#0b7fa5',
-        weight: 2,
-        opacity: currentTheme() === 'light' ? 0.85 : 0.95,
-        lineJoin: 'miter'
-    }).addTo(polarLayer);
-}
-
-function renderMap(aircraftList, receiver, polarPoints, refit=false) {
+function renderMap(aircraftList, refit=false) {
     currentMapAircraft = aircraftList;
-    currentReceiver = receiver;
-    currentPolarPoints = polarPoints;
     refreshingMap = true;
     markerLayer.clearLayers();
-    renderReceiver(receiver);
-    renderPolar(polarPoints, receiver);
     const bounds = [];
-
-    if (receiver && receiver.lat !== null && receiver.lon !== null) {
-        bounds.push([receiver.lat, receiver.lon]);
-    }
 
     for (const aircraft of aircraftList) {
         const heading = Number.isFinite(aircraft.track) ? aircraft.track : 0;
@@ -290,7 +249,9 @@ function renderMap(aircraftList, receiver, polarPoints, refit=false) {
             selectedAircraftHex = aircraft.hex || null;
         });
         marker.on('popupclose', () => {
-            if (!refreshingMap && selectedAircraftHex === aircraft.hex) selectedAircraftHex = null;
+            if (!refreshingMap && selectedAircraftHex === aircraft.hex) {
+                selectedAircraftHex = null;
+            }
         });
 
         marker.bindPopup(`
@@ -309,12 +270,14 @@ function renderMap(aircraftList, receiver, polarPoints, refit=false) {
                     <div><span>Source</span><strong>${aircraft.signal_source || '—'}</strong></div>
                     <div><span>Altitude</span><strong>${aircraft.alt_baro ?? '—'}</strong></div>
                     <div><span>Speed</span><strong>${aircraft.gs ?? '—'}</strong></div>
-                    <div><span>Dist</span><strong>${aircraft.distance_km ?? '—'} km</strong></div>
+                    <div><span>Track</span><strong>${aircraft.track ?? '—'}</strong></div>
+                    <div><span>Distance</span><strong>${aircraft.dist_km ?? '—'} km</strong></div>
                 </div>
             </div>
         `);
-
-        if (selectedAircraftHex && aircraft.hex === selectedAircraftHex) marker.openPopup();
+        if (selectedAircraftHex && aircraft.hex === selectedAircraftHex) {
+            marker.openPopup();
+        }
         bounds.push([aircraft.lat, aircraft.lon]);
     }
 
@@ -353,7 +316,7 @@ function renderSidebar(aircraft) {
             <td><span class="source-badge source-${String(a.signal_source || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '')}">${a.signal_source || 'Unknown'}</span></td>
             <td class="number">${a.alt_baro ?? '—'}</td>
             <td class="number">${a.gs ?? '—'}</td>
-            <td class="number">${a.distance_km ?? '—'}</td>
+            <td class="number">${a.dist_km ?? '—'}</td>
         </tr>
     `).join('');
 
@@ -368,7 +331,6 @@ function updateStats(stats) {
     document.getElementById('stat-visible').textContent = stats.with_position ?? '—';
     document.getElementById('stat-alt').textContent = stats.avg_altitude ?? '—';
     document.getElementById('stat-speed').textContent = stats.avg_speed ?? '—';
-    document.getElementById('stat-nearest').textContent = stats.nearest ?? '—';
 }
 
 async function refreshAircraft(refit=false) {
@@ -386,20 +348,13 @@ async function refreshAircraft(refit=false) {
 
         errorBox.hidden = true;
         renderSidebar(data.aircraft || []);
-        renderMap(data.map_aircraft || [], data.receiver || null, data.polar_points || [], refit);
+        renderMap(data.map_aircraft || [], refit);
         updateStats(data.stats || {});
     } catch (err) {
         errorBox.hidden = false;
         errorBox.textContent = 'Failed to refresh live aircraft data.';
     }
 }
-
-const savedPolar = localStorage.getItem(polarStorageKey);
-if (savedPolar === '0') togglePolar.checked = false;
-togglePolar.addEventListener('change', () => {
-    localStorage.setItem(polarStorageKey, togglePolar.checked ? '1' : '0');
-    renderPolar(currentPolarPoints, currentReceiver);
-});
 
 document.getElementById('search-form').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -422,18 +377,15 @@ document.querySelectorAll('.list-table thead th.sortable').forEach(th => {
 updateSortHeaders();
 
 for (const id of ['toggle-registration', 'toggle-callsign', 'toggle-type', 'toggle-altitude']) {
-    document.getElementById(id).addEventListener('change', () => renderMap(currentMapAircraft, currentReceiver, currentPolarPoints, false));
+    document.getElementById(id).addEventListener('change', () => renderMap(currentMapAircraft, false));
 }
 
-document.addEventListener('skyjson:themechange', () => {
-    applyMapTheme();
-    renderPolar(currentPolarPoints, currentReceiver);
+renderMap(initialMapAircraft, true);
+renderSidebar(initialAircraft);
+map.on('click', () => {
+    selectedAircraftHex = null;
 });
 
-applyMapTheme();
-renderMap(initialMapAircraft, initialReceiver, initialPolarPoints, true);
-renderSidebar(initialAircraft);
-map.on('click', () => { selectedAircraftHex = null; });
 setInterval(() => refreshAircraft(false), 1000);
 </script>
 {% endblock %}
