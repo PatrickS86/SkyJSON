@@ -7,25 +7,25 @@
     <form method="post" class="form-grid">
         <label>Aircraft data source
             <select name="source_type">
-                <option value="file" {% if settings and settings.source_type == "file" %}selected{% endif %}>Local file</option>
-                <option value="url" {% if settings and settings.source_type == "url" %}selected{% endif %}>Remote URL</option>
+                <option value="file" {% if settings.source_type == 'file' %}selected{% endif %}>Local file</option>
+                <option value="url" {% if settings.source_type == 'url' %}selected{% endif %}>Remote URL</option>
             </select>
         </label>
 
         <label>Local path to aircraft.json
-            <input type="text" name="aircraft_path" value="{{ settings.aircraft_path if settings else "" }}" placeholder="/run/readsb/aircraft.json">
+            <input type="text" name="aircraft_path" value="{{ settings.aircraft_path }}" placeholder="/run/readsb/aircraft.json">
         </label>
 
         <label>Remote URL to aircraft.json
-            <input type="url" name="aircraft_url" value="{{ settings.aircraft_url if settings else '' }}" placeholder="http://192.168.1.50/aircraft.json">
+            <input type="url" name="aircraft_url" value="{{ settings.aircraft_url }}" placeholder="http://192.168.1.50/aircraft.json">
         </label>
 
         <label>Local path to receiver.json
-            <input type="text" name="receiver_path" value="{{ settings.receiver_path if settings else '' }}" placeholder="/run/readsb/receiver.json">
+            <input type="text" name="receiver_path" value="{{ settings.receiver_path }}" placeholder="/run/readsb/receiver.json">
         </label>
 
         <label>Remote URL to receiver.json
-            <input type="url" name="receiver_url" value="{{ settings.receiver_url if settings else '' }}" placeholder="http://192.168.1.50/receiver.json">
+            <input type="url" name="receiver_url" value="{{ settings.receiver_url }}" placeholder="http://192.168.1.50/receiver.json">
         </label>
 
         <label class="checkbox-row">
@@ -35,7 +35,7 @@
 
         <div class="two-col">
             <label>Configuration username
-                <input type="text" name="username" value="{{ settings.config_username if settings else "" }}" placeholder="Only required when protection is enabled">
+                <input type="text" name="username" value="{{ settings.config_username }}" placeholder="Only required when protection is enabled">
             </label>
 
             <label>Configuration password
